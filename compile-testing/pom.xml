@@ -9,7 +9,7 @@
 
   <groupId>com.google.testing.compile</groupId>
   <artifactId>compile-testing</artifactId>
-  <version>1.0</version>
+  <version>1.1-SNAPSHOT</version>
 
   <name>Compile Testing</name>
   <description>Utilities for testing compilation.</description>
@@ -34,7 +34,7 @@
     <connection>scm:git:http://github.com/google/auto</connection>
     <developerConnection>scm:git:git@github.com:google/auto.git</developerConnection>
     <url>http://github.com/google/auto</url>
-    <tag>compile-testing-1.0</tag>
+    <tag>HEAD</tag>
   </scm>
   <dependencies>
     <dependency>
