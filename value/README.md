@@ -28,14 +28,19 @@ Contents
   - [In ExampleTest.java](#in-exampletestjava)
   - [In pom.xml](#in-pomxml)
   - [What's going on here?](#whats-going-on-here)
+  - [Builders](#builders)
 - [Optional "features"](#optional-features)
   - [Data hiding](#data-hiding)
   - [Multiple creation paths](#multiple-creation-paths)
+  - [Default values with builders](#default-values-with-builders)
   - [Nullability](#nullability)
+  - [JavaBeans-style prefixes are optional](#javabeans-style-prefixes-are-optional)
   - [Other preconditions or preprocessing](#other-preconditions-or-preprocessing)
   - [Custom implementations](#custom-implementations)
   - [Nesting](#nesting)
   - [Derived fields](#derived-fields)
+  - [Generics](#generics)
+  - [Converting back to a builder](#converting-back-to-a-builder)
   - [Serialization](#serialization)
 - [Warnings](#warnings)
 - [Restrictions and non-features](#restrictions-and-non-features)
@@ -185,11 +190,13 @@ well-behaved instance back.
 
 ### Builders
 
-You may prefer to construct some object through _builders_. AutoValue
-will implement a nested interface or abstract class that is annotated
-with `@AutoValue.Builder` to make it a builder class. It must have a
-method for every property to set the value of the property, and a build
-method. Here is the example above written using builders.
+You may prefer to construct some objects through _builders_. If there
+is a nested interface or abstract class that is annotated with
+`@AutoValue.Builder`, then AutoValue will implement it to make it a
+builder class. The `@AutoValue.Builder` interface or class is conventionally
+called `Builder`. It must have method for every property to set the
+value of the property, and a build method. Here is the example above
+written using builders.
 
 ```java
     import com.google.auto.value.AutoValue;
@@ -341,10 +348,10 @@ examples:
 ```java
     @AutoValue
     class MapEntry<K extends Comparable<K>, V> implements Map.Entry<K, V> {
-	  static <K extends Comparable<K>, V> MapEntry<K, V> create(K key, V value) {
-	    return new AutoValue_MapEntry<K, V>(key, value);
+      static <K extends Comparable<K>, V> MapEntry<K, V> create(K key, V value) {
+        return new AutoValue_MapEntry<K, V>(key, value);
       }
-	  ...
+      ...
     }
 ```
 
@@ -353,15 +360,15 @@ or
 ```java
     @AutoValue
     class MapEntry<K extends Comparable<K>, V> implements Map.Entry<K, V> {
-	  static <K extends Comparable<K>, V> Builder<K, V> builder() {
-	    return new AutoValue_MapEntry.Builder<K, V>();
+      static <K extends Comparable<K>, V> Builder<K, V> builder() {
+        return new AutoValue_MapEntry.Builder<K, V>();
       }
-	  interface Builder<K extends Comparable<K>, V> {
-	    Builder setKey(K key);
-		Builder setValue(V value);
-		MapEntry<K, V> build();
+      interface Builder<K extends Comparable<K>, V> {
+        Builder setKey(K key);
+        Builder setValue(V value);
+        MapEntry<K, V> build();
       }
-	  ...
+      ...
     }
 ```
 
@@ -377,15 +384,15 @@ for one changed property. Here is an example:
     class Example {
       @AutoValue
       abstract static class Animal {
-	    static Builder builder() {
-		  return AutoValue_Animal.Builder();
-	    }
+        static Builder builder() {
+          return AutoValue_Animal.Builder();
+        }
 
         abstract Builder toBuilder();
 
         Animal withNumberOfLegs(int n) {
-		  return toBuilder().numberOfLegs(n).build();
-	    }
+          return toBuilder().numberOfLegs(n).build();
+        }
         // ...remainder as before...
       }
     }
