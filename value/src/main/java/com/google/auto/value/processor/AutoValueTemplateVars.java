@@ -22,9 +22,6 @@ import com.google.common.collect.ImmutableSortedSet;
 
 import org.apache.velocity.runtime.parser.node.SimpleNode;
 
-import java.util.Collections;
-import java.util.Set;
-
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.util.Types;
 

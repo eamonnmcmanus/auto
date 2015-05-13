@@ -18,12 +18,12 @@ package com.google.auto.value.processor;
 import com.google.common.collect.ImmutableList;
 
 import org.apache.velocity.VelocityContext;
-import org.apache.velocity.runtime.log.NullLogChute;
 import org.apache.velocity.runtime.RuntimeConstants;
 import org.apache.velocity.runtime.RuntimeInstance;
 import org.apache.velocity.runtime.log.NullLogChute;
 import org.apache.velocity.runtime.parser.ParseException;
 import org.apache.velocity.runtime.parser.node.SimpleNode;
+import org.apache.velocity.runtime.resource.ResourceCacheImpl;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -32,7 +32,6 @@ import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import org.apache.velocity.runtime.resource.ResourceCacheImpl;
 
 /**
  * A template and a set of variables to be substituted into that template. A concrete subclass of
