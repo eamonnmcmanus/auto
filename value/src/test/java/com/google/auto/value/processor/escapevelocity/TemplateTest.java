@@ -214,8 +214,7 @@ public class TemplateTest {
   @Test
   public void nestedForEach() {
     String template =
-        "$x\n"
-        + "#foreach ($x in $listOfLists)\n"
+        "$x #foreach ($x in $listOfLists)\n"
         + "  #foreach ($y in $x)\n"
         + "    ($y)#if ($foreach.hasNext), #end\n"
         + "  #end#if ($foreach.hasNext); #end\n"
@@ -234,8 +233,11 @@ public class TemplateTest {
     compare("x #set ($x = 0) x");
     compare("$x#set ($x = 0)x", ImmutableMap.of("x", (Object) "!"));
 
-    // TODO(emcmanus): Velocity WTF: the #set eats the space after $x, so the output is <!x>.
-    // compare("$x #set ($x = 0)x", ImmutableMap.of("x", (Object) "!"));
+    // Velocity WTF: the #set eats the space after $x and other references, so the output is <!x>.
+    compare("$x  #set ($x = 0)x", ImmutableMap.of("x", (Object) "!"));
+    compare("$x.length()  #set ($x = 0)x", ImmutableMap.of("x", (Object) "!"));
+    compare("$x.empty  #set ($x = 0)x", ImmutableMap.of("x", (Object) "!"));
+    compare("$x[0]  #set ($x = 0)x", ImmutableMap.of("x", (Object) ImmutableList.of("!")));
   }
 
   @Test
@@ -293,5 +295,40 @@ public class TemplateTest {
         }
       }
     }
+  }
+
+  @Test
+  public void simpleMacro() {
+    String template =
+        "xyz\n"
+        + "#macro (m)\n"
+        + "hello world\n"
+        + "#end\n"
+        + "#m() abc #m()\n";
+    compare(template);
+  }
+
+  @Test
+  public void macroWithArgs() {
+    String template =
+        "$x\n"
+        + "#macro (m $x $y)\n"
+        + "  #if ($x < $y) less #else greater #end\n"
+        + "#end\n"
+        + "#m(17 23) #m(23 17) #m(17 17)\n"
+        + "$x";
+    compare(template, ImmutableMap.of("x", (Object) "tiddly"));
+  }
+
+  @Test
+  public void conditionalMacroDefinition() {
+    String template =
+        "#if (false)\n"
+        + "  #macro (m) foo #end\n"
+        + "#else\n"
+        + "  #macro (m) bar #end\n"
+        + "#end\n"
+        + "#m()\n";
+    compare(template);
   }
 }

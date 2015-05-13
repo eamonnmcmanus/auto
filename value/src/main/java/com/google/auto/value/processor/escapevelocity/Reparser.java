@@ -3,6 +3,8 @@ package com.google.auto.value.processor.escapevelocity;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.ForEachNode;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.IfNode;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.MacroDefinitionNode;
+import com.google.auto.value.processor.escapevelocity.DirectiveNode.SetNode;
+import com.google.auto.value.processor.escapevelocity.ExpressionNode.ConstantExpressionNode;
 import com.google.auto.value.processor.escapevelocity.Node.EmptyNode;
 import com.google.auto.value.processor.escapevelocity.Node.EofNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseIfTokenNode;
@@ -12,9 +14,10 @@ import com.google.auto.value.processor.escapevelocity.TokenNode.ForEachTokenNode
 import com.google.auto.value.processor.escapevelocity.TokenNode.IfOrElseIfTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.IfTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.MacroDefinitionTokenNode;
+import com.google.common.base.CharMatcher;
 import com.google.common.collect.ImmutableSet;
 
-import java.util.Queue;
+import java.util.LinkedList;
 import java.util.Set;
 
 /**
@@ -28,17 +31,36 @@ class Reparser {
   private static final ImmutableSet<Class<?>> ELSE_ELSE_IF_END_SET =
       ImmutableSet.<Class<?>>of(ElseTokenNode.class, ElseIfTokenNode.class, EndTokenNode.class);
 
-  private final Queue<Node> nodes;
+  private final LinkedList<Node> nodes;
   private Node currentNode;
 
-  Reparser(Queue<Node> nodes) {
+  Reparser(LinkedList<Node> nodes) {
     this.nodes = nodes;
-    this.currentNode = nodes.remove();
+    removeSpaceBetweenRefAndSet();
+    this.currentNode = this.nodes.remove();
   }
 
   Template reparse() {
     Node root = parseTo(EOF_SET, null);
     return new Template(root);
+  }
+
+  private void removeSpaceBetweenRefAndSet() {
+    assert nodes.peekLast() instanceof EofNode;
+    for (int i = 0; i < nodes.size(); i++) {
+      Node nodeI = nodes.get(i);
+      if (nodeI instanceof ReferenceNode) {
+        Node next = nodes.get(i + 1);
+        if (next instanceof ConstantExpressionNode) {
+          Object constant = next.evaluate(null);
+          if (constant instanceof String
+              && CharMatcher.WHITESPACE.matchesAllOf((String) constant)
+              && nodes.get(i + 2) instanceof SetNode) {
+            nodes.remove(i + 1);
+          }
+        }
+      }
+    }
   }
 
   private Node parseTo(Set<Class<?>> stopSet, TokenNode forWhat) {

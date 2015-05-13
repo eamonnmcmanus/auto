@@ -60,7 +60,6 @@ class MethodReferenceNode extends ReferenceNode {
       }
     }
     try {
-      System.out.println("invoke " + method + " on " + target + " with " + argValues);
       return method.invoke(target, argValues.toArray());
     } catch (InvocationTargetException e) {
       throw new EvaluationException(e.getCause());

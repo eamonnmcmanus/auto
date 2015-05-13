@@ -19,13 +19,13 @@ import com.google.auto.value.processor.escapevelocity.TokenNode.ForEachTokenNode
 import com.google.auto.value.processor.escapevelocity.TokenNode.IfTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.MacroDefinitionTokenNode;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Queues;
+import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
 
 import java.io.IOException;
 import java.io.LineNumberReader;
 import java.io.Reader;
-import java.util.Queue;
+import java.util.LinkedList;
 
 /**
  * @author emcmanus@google.com (Éamonn McManus)
@@ -43,7 +43,7 @@ class Parser {
   }
 
   Template parse() throws IOException {
-    Queue<Node> tokens = Queues.newArrayDeque();
+    LinkedList<Node> tokens = Lists.newLinkedList();
     Node token;
     do {
       token = parseNode();
@@ -64,7 +64,7 @@ class Parser {
   }
 
   private int skipSpace() throws IOException {
-    while (Character.isWhitespace(c)) {
+    while (Character.isSpaceChar(c)) {
       next();
     }
     return c;
