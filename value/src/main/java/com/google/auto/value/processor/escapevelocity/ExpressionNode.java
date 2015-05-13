@@ -181,17 +181,4 @@ abstract class ExpressionNode extends Node {
       return !expr.isTrue(context);
     }
   }
-
-  static class NegateExpressionNode extends ExpressionNode {
-    private final ExpressionNode expr;
-
-    NegateExpressionNode(ExpressionNode expr) {
-      super(expr.lineNumber);
-      this.expr = expr;
-    }
-
-    @Override public Object evaluate(EvaluationContext context) {
-      return -expr.intValue(context);
-    }
-  }
 }

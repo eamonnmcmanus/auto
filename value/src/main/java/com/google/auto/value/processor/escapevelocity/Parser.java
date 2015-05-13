@@ -6,13 +6,11 @@ import com.google.auto.value.processor.escapevelocity.ExpressionNode.ArithmeticE
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.ConstantExpressionNode;
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.EqualsExpressionNode;
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.LessExpressionNode;
-import com.google.auto.value.processor.escapevelocity.ExpressionNode.NegateExpressionNode;
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.NotExpressionNode;
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.OrExpressionNode;
 import com.google.auto.value.processor.escapevelocity.Node.EofNode;
 import com.google.auto.value.processor.escapevelocity.ReferenceNode.IndexReferenceNode;
 import com.google.auto.value.processor.escapevelocity.ReferenceNode.MemberReferenceNode;
-import com.google.auto.value.processor.escapevelocity.ReferenceNode.MethodReferenceNode;
 import com.google.auto.value.processor.escapevelocity.ReferenceNode.PlainReferenceNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseIfTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseTokenNode;
@@ -40,6 +38,7 @@ class Parser {
 
   Parser(Reader reader) throws IOException {
     this.reader = new LineNumberReader(reader);
+    this.reader.setLineNumber(1);
     next();
   }
 
@@ -71,15 +70,9 @@ class Parser {
     return c;
   }
 
-  private int skipSpaceStoppingAtEol() throws IOException {
-    while (Character.isWhitespace(c)) {
-      if (c == '\n') {
-        next();
-        break;
-      }
-      next();
-    }
-    return c;
+  private int nextNonSpace() throws IOException {
+    next();
+    return skipSpace();
   }
 
   private void expect(char expected) throws IOException {
@@ -112,12 +105,12 @@ class Parser {
       if (Character.isLetter(c) || c == '{') {
         return parseReference();
       } else {
-        return parseLiteral('$');
+        return parsePlainText('$');
       }
     } else {
       int firstChar = c;
       next();
-      return parseLiteral(firstChar);
+      return parsePlainText(firstChar);
     }
   }
 
@@ -142,7 +135,9 @@ class Parser {
     } else {
       node = parsePossibleMacroCall(directive);
     }
-    skipSpaceStoppingAtEol();
+    if (c == '\n') {
+      next();
+    }
     return node;
   }
 
@@ -150,6 +145,7 @@ class Parser {
     expect('(');
     expect('$');
     String var = parseId("For-each variable");
+    skipSpace();
     boolean bad = false;
     if (c != 'i') {
       bad = true;
@@ -223,7 +219,7 @@ class Parser {
     next();
   }
 
-  private Node parseLiteral(int firstChar) throws IOException {
+  private Node parsePlainText(int firstChar) throws IOException {
     StringBuilder sb = new StringBuilder();
     sb.appendCodePoint(firstChar);
 
@@ -287,14 +283,12 @@ class Parser {
 
   private ReferenceNode parseReferenceMethod(ReferenceNode lhs, String id) throws IOException {
     assert c == '(';
-    next();
-    skipSpace();
+    nextNonSpace();
     ImmutableList.Builder<ExpressionNode> args = ImmutableList.builder();
     if (c != ')') {
       args.add(parseExpression());
       while (c == ',') {
-        next();
-        skipSpace();
+        nextNonSpace();
         args.add(parseExpression());
       }
       if (c != ')') {
@@ -327,7 +321,7 @@ class Parser {
       if (c != '|') {
         throw parseError("Expected ||, not just |");
       }
-      next();
+      nextNonSpace();
       lhs = new OrExpressionNode(lhs, parseExpression());
     }
     return lhs;
@@ -340,7 +334,7 @@ class Parser {
       if (c != '&') {
         throw parseError("Expected &&, not just &");
       }
-      next();
+      nextNonSpace();
       lhs = new AndExpressionNode(lhs, parseRelationalExpression());
     }
     return lhs;
@@ -354,31 +348,33 @@ class Parser {
         if (c != '=') {
           throw parseError("Expected ==, not just =");
         }
-        next();
+        nextNonSpace();
         return new EqualsExpressionNode(lhs, parseAdditiveExpression());
       case '!':
         next();
         if (c != '=') {
           throw parseError("Expected !=, not just !");
         }
-        next();
+        nextNonSpace();
         return new NotExpressionNode(new EqualsExpressionNode(lhs, parseAdditiveExpression()));
       case '<':
         next();
         if (c == '=') {
-          next();
+          nextNonSpace();
           // a <= b  <=>  !(b < a)
           return new NotExpressionNode(new LessExpressionNode(parseAdditiveExpression(), lhs));
         } else {
+          skipSpace();
           return new LessExpressionNode(lhs, parseAdditiveExpression());
         }
       case '>':
         next();
         if (c == '=') {
-          next();
+          nextNonSpace();
           // a >= b  <=>  !(a < b)
           return new NotExpressionNode(new LessExpressionNode(lhs, parseAdditiveExpression()));
         } else {
+          skipSpace();
           // a > b  <=>  b < a
           return new LessExpressionNode(parseAdditiveExpression(), lhs);
         }
@@ -391,6 +387,7 @@ class Parser {
     ExpressionNode lhs = parseMultiplicativeExpression();
     while (c == '+' || c == '-') {
       int op = c;
+      nextNonSpace();
       ExpressionNode rhs = parseMultiplicativeExpression();
       lhs = new ArithmeticExpressionNode(lineNumber(), op, lhs, rhs);
     }
@@ -401,6 +398,7 @@ class Parser {
     ExpressionNode lhs = parseUnaryExpression();
     while (c == '*' || c == '/' || c == '%') {
       int op = c;
+      nextNonSpace();
       ExpressionNode rhs = parseUnaryExpression();
       lhs = new ArithmeticExpressionNode(lineNumber(), op, lhs, rhs);
     }
@@ -409,19 +407,25 @@ class Parser {
 
   private ExpressionNode parseUnaryExpression() throws IOException {
     ExpressionNode node;
-    if (c == '-') {
-      next();
-      node = new NegateExpressionNode(parseUnaryExpression());
+    if (c == '(') {
+      nextNonSpace();
+      node = parseExpression();
+      expect(')');
     } else if (c == '!') {
-      next();
+      nextNonSpace();
       node = new NotExpressionNode(parseUnaryExpression());
     } else if (c == '$') {
       next();
       node = parseReference();
     } else if (c == '"') {
       node = parseStringLiteral();
+    } else if (c == '-') {
+      next();
+      node = parseIntLiteral("-");
     } else if (Character.isDigit(c)) {
-      node = parseIntLiteral();
+      node = parseIntLiteral("");
+    } else if (Character.isLetter(c)) {
+      node = parseBooleanLiteral();
     } else {
       throw parseError("Expected an expression");
     }
@@ -438,19 +442,34 @@ class Parser {
         throw parseError("Unterminated string constant");
       }
       sb.appendCodePoint(c);
+      next();
     }
     next();
     return new ConstantExpressionNode(lineNumber(), sb.toString());
   }
 
-  private ExpressionNode parseIntLiteral() throws IOException {
-    StringBuilder sb = new StringBuilder();
+  private ExpressionNode parseIntLiteral(String prefix) throws IOException {
+    StringBuilder sb = new StringBuilder(prefix);
     while (Character.isDigit(c)) {
       sb.appendCodePoint(c);
+      next();
     }
     Integer value = Ints.tryParse(sb.toString());
     if (value == null) {
       throw parseError("Invalid integer: " + sb);
+    }
+    return new ConstantExpressionNode(lineNumber(), value);
+  }
+
+  private ExpressionNode parseBooleanLiteral() throws IOException {
+    String s = parseId("Identifier without $");
+    boolean value;
+    if (s.equals("true")) {
+      value = true;
+    } else if (s.equals("false")) {
+      value = false;
+    } else {
+      throw parseError("Identifier in expression must be preceded by $ or be true or false");
     }
     return new ConstantExpressionNode(lineNumber(), value);
   }

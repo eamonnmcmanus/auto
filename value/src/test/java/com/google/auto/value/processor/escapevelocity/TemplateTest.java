@@ -1,9 +1,10 @@
 package com.google.auto.value.processor.escapevelocity;
 
+import com.google.common.collect.ImmutableList;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.truth.Truth;
 
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.runtime.RuntimeConstants;
@@ -21,7 +22,6 @@ import org.junit.runners.JUnit4;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -57,7 +57,15 @@ public class TemplateTest {
     } catch (IOException e) {
       throw new AssertionError(e);
     }
+    if (!escapeVelocityRendered.equals(velocityRendered)) {
+      System.out.println("from velocity: <" + velocityRendered + ">");
+      System.out.println("from escape: <" + escapeVelocityRendered + ">");
+    }
     assertThat(escapeVelocityRendered).isEqualTo(velocityRendered);
+  }
+
+  private void compare(String template) {
+    compare(template, ImmutableMap.<String, Object>of());
   }
 
   private String velocityRender(String template, Map<String, Object> vars) {
@@ -78,18 +86,18 @@ public class TemplateTest {
 
   @Test
   public void empty() {
-    compare("", ImmutableMap.<String, Object>of());
+    compare("");
   }
 
   @Test
   public void literalOnly() {
-    compare("In the reign of James the Second \n It was generally reckoned\n",
-        ImmutableMap.<String, Object>of());
+    compare("In the reign of James the Second \n It was generally reckoned\n");
   }
 
   @Test
   public void substituteNoBraces() {
     compare(" $x ", ImmutableMap.of("x", (Object) 1729));
+    compare(" ! $x ! ", ImmutableMap.of("x", (Object) 1729));
   }
 
   @Test
@@ -119,7 +127,171 @@ public class TemplateTest {
 
   @Test
   public void substituteMethodOneArg() {
-    compare("<$list.add(\"foo\")...$list>",
-        ImmutableMap.of("list", (Object) new ArrayList<String>()));
+    compare("<$list.get(0)>", ImmutableMap.of("list", (Object) ImmutableList.of("foo")));
+  }
+
+  @Test
+  public void substituteMethodTwoArgs() {
+    compare("\n$s.indexOf(\"bar\", 2)\n", ImmutableMap.of("s", (Object) "barbarbar"));
+  }
+
+  @Test
+  public void substituteIndexNoBraces() {
+    compare("<$map[\"x\"]>", ImmutableMap.of("map", (Object) ImmutableMap.of("x", "y")));
+  }
+
+  @Test
+  public void substituteIndexWithBraces() {
+    compare("<${map[\"x\"]}>", ImmutableMap.of("map", (Object) ImmutableMap.of("x", "y")));
+  }
+
+  @Test
+  public void ifTrueNoElse() {
+    compare("x#if (true)y #end z");
+    compare("x#if (true)y #end  z");
+    compare("x#if (true)y #end\nz");
+    compare("x#if (true)y #end\n z");
+    compare("x#if (true) y #end\nz");
+    compare("x#if (true)\ny #end\nz");
+    compare("x#if (true) y #end\nz");
+    compare("$x #if (true) y #end $x ", ImmutableMap.of("x", (Object) "!"));
+  }
+
+  @Test
+  public void ifFalseNoElse() {
+    compare("x#if (false)y #end z");
+    compare("x#if (false)y #end\nz");
+    compare("x#if (false)y #end\n z");
+    compare("x#if (false) y #end\nz");
+    compare("x#if (false)\ny #end\nz");
+    compare("x#if (false) y #end\nz");
+  }
+
+  @Test
+  public void ifTrueWithElse() {
+    compare("x#if (true) a #else b #end z");
+  }
+
+  @Test
+  public void ifFalseWithElse() {
+    compare("x#if (false) a #else b #end z");
+  }
+
+  @Test
+  public void ifTrueWithElseIf() {
+    compare("x#if (true) a #elseif (true) b #else c #end z");
+  }
+
+  @Test
+  public void ifFalseWithElseIfTrue() {
+    compare("x#if (false) a #elseif (true) b #else c #end z");
+  }
+
+  @Test
+  public void ifFalseWithElseIfFalse() {
+    compare("x#if (false) a #elseif (false) b #else c #end z");
+  }
+
+  @Test
+  public void forEach() {
+    compare("x#foreach ($x in $c) <$x> #end y", ImmutableMap.of("c", (Object) ImmutableList.of()));
+    compare("x#foreach ($x in $c) <$x> #end y",
+        ImmutableMap.of("c", (Object) ImmutableList.of("foo", "bar", "baz")));
+    compare("x#foreach ($x in $c) <$x> #end y",
+        ImmutableMap.of("c", (Object) new String[] {"foo", "bar", "baz"}));
+    compare("x#foreach ($x in $c) <$x> #end y",
+        ImmutableMap.of("c", (Object) ImmutableMap.of("foo", "bar", "baz", "buh")));
+  }
+
+  @Test
+  public void forEachHasNext() {
+    compare("x#foreach ($x in $c) <$x#if ($foreach.hasNext), #end> #end y",
+        ImmutableMap.of("c", (Object) ImmutableList.of()));
+    compare("x#foreach ($x in $c) <$x#if ($foreach.hasNext), #end> #end y",
+        ImmutableMap.of("c", (Object) ImmutableList.of("foo", "bar", "baz")));
+  }
+
+  @Test
+  public void nestedForEach() {
+    String template =
+        "$x\n"
+        + "#foreach ($x in $listOfLists)\n"
+        + "  #foreach ($y in $x)\n"
+        + "    ($y)#if ($foreach.hasNext), #end\n"
+        + "  #end#if ($foreach.hasNext); #end\n"
+        + "#end\n"
+        + "$x\n";
+    Object listOfLists = ImmutableList.of(
+        ImmutableList.of("foo", "bar", "baz"), ImmutableList.of("fred", "jim", "sheila"));
+    compare(template, ImmutableMap.of("x", 23, "listOfLists", listOfLists));
+  }
+
+  @Test
+  public void setSpacing() {
+    // The spacing in the output from #set is eccentric.
+    compare("x#set ($x = 0)x");
+    compare("x #set ($x = 0)x");
+    compare("x #set ($x = 0) x");
+    compare("$x#set ($x = 0)x", ImmutableMap.of("x", (Object) "!"));
+
+    // TODO(emcmanus): Velocity WTF: the #set eats the space after $x, so the output is <!x>.
+    // compare("$x #set ($x = 0)x", ImmutableMap.of("x", (Object) "!"));
+  }
+
+  @Test
+  public void simpleSet() {
+    compare("$x#set ($x = 17)#set ($y = 23) ($x, $y)", ImmutableMap.of("x", (Object) 1));
+  }
+
+  @Test
+  public void expressions() {
+    compare("#set ($x = 1 + 1) $x");
+    compare("#set ($x = 1 + 2 * 3) $x");
+    compare("#set ($x = (1 + 1 == 2)) $x");
+    compare("#set ($x = (1 + 1 != 2)) $x");
+  }
+
+  @Test
+  public void and() {
+    compare("#set ($x = false && false) $x");
+    compare("#set ($x = false && true) $x");
+    compare("#set ($x = true && false) $x");
+    compare("#set ($x = true && true) $x");
+  }
+
+  @Test
+  public void or() {
+    compare("#set ($x = false || false) $x");
+    compare("#set ($x = false || true) $x");
+    compare("#set ($x = true || false) $x");
+    compare("#set ($x = true || true) $x");
+  }
+
+  @Test
+  public void not() {
+    compare("#set ($x = !true) $x");
+    compare("#set ($x = !false) $x");
+  }
+
+  @Test
+  public void numbers() {
+    compare("#set ($x = 0) $x");
+    compare("#set ($x = -1) $x");
+    compare("#set ($x = " + Integer.MAX_VALUE + ") $x");
+    compare("#set ($x = " + Integer.MIN_VALUE + ") $x");
+  }
+
+  @Test
+  public void relations() {
+    String[] ops = {"==", "!=", "<", ">", "<=", ">="};
+    int[] numbers = {-1, 0, 1, 17};
+    for (String op : ops) {
+      for (int a : numbers) {
+        for (int b : numbers) {
+          compare("#set ($x = $a " + op + " $b) $x",
+              ImmutableMap.<String, Object>of("a", a, "b", b));
+        }
+      }
+    }
   }
 }

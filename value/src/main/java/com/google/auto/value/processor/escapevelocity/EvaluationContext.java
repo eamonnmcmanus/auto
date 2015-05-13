@@ -11,7 +11,7 @@ class EvaluationContext {
   private final Map<String, Macro> macros;
 
   EvaluationContext(Map<String, Object> vars) {
-    this.vars = vars;
+    this.vars = new TreeMap<String, Object>(vars);
     this.macros = new TreeMap<String, Macro>();
   }
 

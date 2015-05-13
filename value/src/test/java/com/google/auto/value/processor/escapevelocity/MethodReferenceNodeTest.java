@@ -1,24 +1,29 @@
 package com.google.auto.value.processor.escapevelocity;
 
-import static com.google.common.truth.Truth.assert_;
-
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Primitives;
 import com.google.common.truth.Expect;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Collections;
+import java.util.Map;
 
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
+import static com.google.common.truth.Truth.assertThat;
+
 /**
- * Tests for {@link ReferenceNode}.
+ * Tests for {@link MethodReferenceNode}.
  *
  * @author emcmanus@google.com (Éamonn McManus)
  */
 @RunWith(JUnit4.class)
-public class ReferenceNodeTest {
+public class MethodReferenceNodeTest {
   @Rule public Expect expect = Expect.create();
 
   private static ImmutableList<Class<?>> pair(Class<?> a, Class<?> b) {
@@ -58,11 +63,27 @@ public class ReferenceNodeTest {
         boolean expected =
             (from == to || ASSIGNMENT_COMPATIBLE.contains(ImmutableList.of(from, to)));
         boolean actual =
-            ReferenceNode.MethodReferenceNode.primitiveTypeIsAssignmentCompatible(to, from);
+            MethodReferenceNode.primitiveTypeIsAssignmentCompatible(to, from);
         expect
             .withFailureMessage(from + " assignable to " + to)
             .that(expected).isEqualTo(actual);
       }
     }
+  }
+
+  @Test
+  public void testVisibleMethod() throws Exception {
+    Map<String, String> map = Collections.singletonMap("foo", "bar");
+    Class<?> mapClass = map.getClass();
+    assertThat(Modifier.isPublic(mapClass.getModifiers())).isFalse();
+    Method size = map.getClass().getMethod("size");
+    Method visibleSize = MethodReferenceNode.visibleMethod(size, mapClass);
+    assertThat(visibleSize.invoke(map)).isEqualTo(1);
+  }
+
+  @Test
+  public void testCompatibleArgs() {
+    assertThat(MethodReferenceNode.compatibleArgs(
+        new Class<?>[]{int.class}, ImmutableList.of((Object) 5))).isTrue();
   }
 }

@@ -3,7 +3,9 @@ package com.google.auto.value.processor.escapevelocity;
 import com.google.common.collect.ImmutableList;
 
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author emcmanus@google.com (Éamonn McManus)
@@ -51,17 +53,36 @@ abstract class DirectiveNode extends Node {
         iterable = (Iterable<?>) collectionValue;
       } else if (collectionValue instanceof Object[]) {
         iterable = Arrays.asList((Object[]) collectionValue);
+      } else if (collectionValue instanceof Map<?, ?>) {
+        iterable = ((Map<?, ?>) collectionValue).values();
       } else {
-        throw new IllegalArgumentException("Not iterable: " + collectionValue);
+        throw new EvaluationException("Not iterable: " + collectionValue);
       }
       Runnable undo = context.setVar(var, null);
       StringBuilder sb = new StringBuilder();
-      for (Object x : iterable) {
-        context.setVar(var, x);
+      Iterator<?> it = iterable.iterator();
+      Runnable undoForEach = context.setVar("foreach", new ForEachVar(it));
+      while (it.hasNext()) {
+        context.setVar(var, it.next());
         sb.append(body.evaluate(context));
       }
+      undoForEach.run();
       undo.run();
       return sb.toString();
+    }
+
+    // This class is the type of the variable $foreach that is defined within #foreach loops.
+    // Its getHasNext() method means that we can write #if ($foreach.hasNext).
+    private static class ForEachVar {
+      private final Iterator<?> iterator;
+
+      ForEachVar(Iterator<?> iterator) {
+        this.iterator = iterator;
+      }
+
+      public boolean getHasNext() {
+        return iterator.hasNext();
+      }
     }
   }
 
