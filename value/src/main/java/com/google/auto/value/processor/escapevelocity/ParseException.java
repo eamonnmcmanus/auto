@@ -1,6 +1,8 @@
 package com.google.auto.value.processor.escapevelocity;
 
 /**
+ * An exception that occurred while parsing a template.
+ *
  * @author emcmanus@google.com (Éamonn McManus)
  */
 public class ParseException extends RuntimeException {

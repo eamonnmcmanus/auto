@@ -3,7 +3,6 @@ package com.google.auto.value.processor.escapevelocity;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.SetNode;
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.AndExpressionNode;
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.ArithmeticExpressionNode;
-import com.google.auto.value.processor.escapevelocity.ExpressionNode.ConstantExpressionNode;
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.EqualsExpressionNode;
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.LessExpressionNode;
 import com.google.auto.value.processor.escapevelocity.ExpressionNode.NotExpressionNode;
@@ -28,12 +27,21 @@ import java.io.Reader;
 import java.util.LinkedList;
 
 /**
+ * A parser that reads input from the given {@link Reader} and parses it to produce a
+ * {@link Template}.
+ *
  * @author emcmanus@google.com (Éamonn McManus)
  */
 class Parser {
   private static final int EOF = -1;
 
   private final LineNumberReader reader;
+  /**
+   * The invariant of this parser is that {@code c} is always the next character of interest.
+   * This means that we never have to "unget" a character by reading too far. For example, after
+   * we parse an integer, {@code c} will be the first character after the integer, which is exactly
+   * the state we will be in when there are no more digits.
+   */
   private int c;
 
   Parser(Reader reader) throws IOException {
@@ -42,6 +50,40 @@ class Parser {
     next();
   }
 
+  /**
+   * Parse the input completely to produce a {@link Template}.
+   *
+   * <p>Parsing happens in two phases. First, we parse a sequence of "tokens", where tokens include
+   * entire references such as <pre>
+   *    ${x.foo()[23]}
+   * </pre>or entire directives such as<pre>
+   *    #set ($x = $y + $z)
+   * </pre>But tokens do not span complex constructs. For example,<pre>
+   *    #if ($x == $y) something #end
+   * </pre>is three tokens:<pre>
+   *    #if ($x == $y)
+   *    (literal text " something ")
+   *   #end
+   * </pre>
+   *
+   * <p>The second phase then takes the sequence of tokens and constructs a parse tree out of it.
+   * Some nodes in the parse tree will be unchanged from the token sequence, such as the <pre>
+   *    ${x.foo()[23]}
+   *    #set ($x = $y + $z)
+   * </pre>examples above. But a construct such as the {@code #if ... #end} mentioned above will
+   * become a single IfNode in the parse tree in the second phase.
+   *
+   * <p>The main reason for this approach is that Velocity has two kinds of lexical scopes. At the
+   * top level, there can be arbitrary literal text, references like <code>${x.foo()}</code>, and
+   * directives like {@code #if} or {@code #set}. Inside the parentheses of a directive, however,
+   * neither arbitrary text nor directives can appear, but expressions can, so we need to tokenize
+   * the inside of <pre>
+   *    #if ($x == $a + $b)
+   * </pre>as the five tokens "$x", "==", "$a", "+", "$b". Rather than having a classical
+   * parser/lexer combination, where the lexer would need to switch between these two modes, we
+   * replace the lexer with an ad-hoc parser that is the first phase described above, and we
+   * define a simple parser over the resultant tokens that is the second phase.
+   */
   Template parse() throws IOException {
     LinkedList<Node> tokens = Lists.newLinkedList();
     Node token;
@@ -56,25 +98,39 @@ class Parser {
     return reader.getLineNumber();
   }
 
-  private int next() throws IOException {
+  /**
+   * Gets the next character from the reader and assigns it to {@code c}. If there are no more
+   * characters, sets {@code c} to {@link #EOF} if it is not already.
+   */
+  private void next() throws IOException {
     if (c != EOF) {
       c = reader.read();
     }
-    return c;
   }
 
-  private int skipSpace() throws IOException {
+  /**
+   * If {@code c} is a space character, keeps reading until {@code c} is a non-space character or
+   * there are no more characters.
+   */
+  private void skipSpace() throws IOException {
     while (Character.isSpaceChar(c)) {
       next();
     }
-    return c;
   }
 
-  private int nextNonSpace() throws IOException {
+  /**
+   * Gets the next character from the reader, and if it is a space character, keeps reading until
+   * a non-space character is found.
+   */
+  private void nextNonSpace() throws IOException {
     next();
-    return skipSpace();
+    skipSpace();
   }
 
+  /**
+   * Skips any space in the reader, and then throws an exception if the first non-space character
+   * found is not the expected one. Sets {@code c} to the first character after that expected one.
+   */
   private void expect(char expected) throws IOException {
     skipSpace();
     if (c == expected) {
@@ -84,6 +140,14 @@ class Parser {
     }
   }
 
+  /**
+   * Parses a single node from the reader, as part of the first parsing phase.
+   * <pre>{@code
+   * <template> -> <empty> |
+   *               <directive> <template> |
+   *               <non-directive> <template>
+   * }</pre>
+   */
   private Node parseNode() throws IOException {
     while (c == '#') {
       next();
@@ -99,6 +163,13 @@ class Parser {
     return parseNonDirective();
   }
 
+  /**
+   * Parses a single non-directive node from the reader.
+   * <pre>{@code
+   * <non-directive> -> <reference> |
+   *                    <text containing neither $ nor #>
+   * }</pre>
+   */
   private Node parseNonDirective() throws IOException {
     if (c == '$') {
       next();
@@ -114,8 +185,30 @@ class Parser {
     }
   }
 
+  /**
+   * Parses a single directive token from the reader. Directives can be spelled with or without
+   * braces, for example {@code #if} or {@code #{if}}. We omit the brace spelling in the productions
+   * here: <pre>{@code
+   * <directive> -> <if-token> |
+   *                <else-token> |
+   *                <elseif-token> |
+   *                <end-token> |
+   *                <foreach-token> |
+   *                <set-token> |
+   *                <macro-token> |
+   *                <macro-call> |
+   *                <comment>
+   * }</pre>
+   */
   private Node parseDirective() throws IOException {
-    String directive = parseId("Directive");
+    String directive;
+    if (c == '{') {
+      next();
+      directive = parseId("Directive inside #{...}");
+      expect('}');
+    } else {
+      directive = parseId("Directive");
+    }
     Node node;
     if (directive.equals("end")) {
       node = new EndTokenNode(lineNumber());
@@ -141,6 +234,11 @@ class Parser {
     return node;
   }
 
+  /**
+   * Parses a {@code #foreach} token from the reader. <pre>{@code
+   * <foreach-token> -> #foreach ( $<id> in <expression>)
+   * }</pre>
+   */
   private Node parseForEach() throws IOException {
     expect('(');
     expect('$');
@@ -164,6 +262,11 @@ class Parser {
     return new ForEachTokenNode(var, collection);
   }
 
+  /**
+   * Parses a {@code #set} token from the reader. <pre>{@code
+   * <set-token> -> #set ( $<id> = <expression>)
+   * }</pre>
+   */
   private Node parseSet() throws IOException {
     expect('(');
     expect('$');
@@ -174,6 +277,15 @@ class Parser {
     return new SetNode(var, expression);
   }
 
+  /**
+   * Parses a {@code #macro} token from the reader. <pre>{@code
+   * <macro-token> -> #macro ( <id> <macro-parameter-list> )
+   * <macro-parameter-list> -> <empty> |
+   *                           $<id> <macro-parameter-list>
+   * }</pre>
+   *
+   * <p>Macro parameters are not separated by commas, though method-reference parameters are.
+   */
   private Node parseMacroDefinition() throws IOException {
     expect('(');
     skipSpace();
@@ -194,6 +306,17 @@ class Parser {
     return new MacroDefinitionTokenNode(lineNumber(), name, parameterNames.build());
   }
 
+  /**
+   * Parses an identifier after {@code #} that is not one of the standard directives. The assumption
+   * is that it is a call of a macro that is defined in the template. Macro definitions are
+   * extracted from the template during the second parsing phase (and not during evaluation of the
+   * template as you might expect). This means that a macro can be called before it is defined.
+   * <pre>{@code
+   * <macro-call> -> # <id> ( <expression-list> )
+   * <expression-list> -> <empty> |
+   *                      <expression> <expression-list>
+   * }</pre>
+   */
   private Node parsePossibleMacroCall(String directive) throws IOException {
     skipSpace();
     if (c != '(') {
@@ -212,6 +335,10 @@ class Parser {
     return new DirectiveNode.MacroCallNode(lineNumber(), directive, parameterNodes.build());
   }
 
+  /**
+   * Parses and discards a comment, which is {@code ##} followed by any number of characters up to
+   * and including the next newline.
+   */
   private void skipComment() throws IOException {
     while (c != '\n' && c != EOF) {
       next();
@@ -219,6 +346,11 @@ class Parser {
     next();
   }
 
+  /**
+   * Parses plain text, which is text that contains neither {@code $} nor {@code #}. The given
+   * {@code firstChar} is the first character of the plain text, and {@link #c} is the second
+   * (if the plain text is more than one character).
+   */
   private Node parsePlainText(int firstChar) throws IOException {
     StringBuilder sb = new StringBuilder();
     sb.appendCodePoint(firstChar);
@@ -237,6 +369,19 @@ class Parser {
     return new ConstantExpressionNode(lineNumber(), sb.toString());
   }
 
+  /**
+   * Parses a reference, which is everything that can start with a {@code $}. References can
+   * optionally be enclosed in braces, so {@code $x} and {@code ${x}} are the same. Braces are
+   * useful when text after the reference would otherwise be parsed as part of it. For example,
+   * {@code ${x}y} is a reference to the variable {@code $x}, followed by the plain text {@code y}.
+   * Of course {@code $xy} would be a reference to the variable {@code $xy}.
+   * <pre>{@code
+   * <reference> -> $<reference-no-brace> |
+   *                ${<reference-no-brace>}
+   * }</pre>
+   *
+   * <p>On entry to this method, {@link #c} is the character immediately after the {@code $}.
+   */
   private ReferenceNode parseReference() throws IOException {
     if (c == '{') {
       next();
@@ -252,12 +397,29 @@ class Parser {
     }
   }
 
+  /**
+   * Parses a reference, in the simple form without braces.
+   * <pre>{@code
+   * <reference-no-brace> -> <id><reference-suffix>
+   * }</pre>
+   */
   private ReferenceNode parseReferenceNoBrace() throws IOException {
     String id = parseId("Reference");
     ReferenceNode lhs = new PlainReferenceNode(lineNumber(), id);
     return parseReferenceSuffix(lhs);
   }
 
+  /**
+   * Parses the modifiers that can appear at the tail of a reference.
+   * <pre>{@code
+   * <reference-suffix> -> <empty> |
+   *                       <reference-member> |
+   *                       <reference-index>
+   * }</pre>
+   *
+   * @param lhs the reference node representing the first part of the reference
+   * {@code $x} in {@code $x.foo} or {@code $x.foo()}, or later {@code $x.y} in {@code $x.y.z}.
+   */
   private ReferenceNode parseReferenceSuffix(ReferenceNode lhs) throws IOException {
     switch (c) {
       case '.':
@@ -269,19 +431,45 @@ class Parser {
     }
   }
 
+  /**
+   * Parses a reference member, which is either a property reference like {@code $x.y} or a method
+   * call like {@code $x.y($z)}.
+   * <pre>{@code
+   * <reference-member> -> .<id><reference-method-or-property><reference-suffix>
+   * <reference-method-or-property> -> <id> |
+   *                                   <id> ( <method-parameter-list> )
+   * }</pre>
+   *
+   * @param lhs the reference node representing what appears to the left of the dot, like the
+   * {@code $x} in {@code $x.foo} or {@code $x.foo()}.
+   */
   private ReferenceNode parseReferenceMember(ReferenceNode lhs) throws IOException {
     assert c == '.';
     next();
     String id = parseId("Member");
+    ReferenceNode reference;
     if (c == '(') {
-      return parseReferenceMethod(lhs, id);
+      reference = parseReferenceMethodParams(lhs, id);
     } else {
-      ReferenceNode reference = new MemberReferenceNode(lhs, id);
-      return parseReferenceSuffix(reference);
+      reference = new MemberReferenceNode(lhs, id);
     }
+    return parseReferenceSuffix(reference);
   }
 
-  private ReferenceNode parseReferenceMethod(ReferenceNode lhs, String id) throws IOException {
+  /**
+   * Parses the parameters to a method reference, like {@code $foo.bar($a, $b)}.
+   * <pre>{@code
+   * <method-parameter-list> -> <empty> |
+   *                            <non-empty-method-parameter-list>
+   * <non-empty-method-parameter-list> -> <expression> |
+   *                                      <expression> , <non-empty-method-parameter-list>
+   * }</pre>
+   *
+   * @param lhs the reference node representing what appears to the left of the dot, like the
+   * {@code $x} in {@code $x.foo()}.
+   */
+  private ReferenceNode parseReferenceMethodParams(ReferenceNode lhs, String id)
+      throws IOException {
     assert c == '(';
     nextNonSpace();
     ImmutableList.Builder<ExpressionNode> args = ImmutableList.builder();
@@ -297,10 +485,18 @@ class Parser {
     }
     assert c == ')';
     next();
-    ReferenceNode reference = new MethodReferenceNode(lhs, id, args.build());
-    return parseReferenceSuffix(reference);
+    return new MethodReferenceNode(lhs, id, args.build());
   }
 
+  /**
+   * Parses an index suffix to a method, like {@code $x[$i]}.
+   * <pre>{@code
+   * <reference-index> -> [ <expression> ]
+   * }</pre>
+   *
+   * @param lhs the reference node representing what appears to the left of the dot, like the
+   * {@code $x} in {@code $x[$i]}.
+   */
   private ReferenceNode parseReferenceIndex(ReferenceNode lhs) throws IOException {
     assert c == '[';
     next();

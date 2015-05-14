@@ -4,10 +4,12 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 /**
+ * A node in the parse tree that is a directive such as {@code #set ($x = $y)}
+ * or {@code #if ($x) y #end}.
+ *
  * @author emcmanus@google.com (Éamonn McManus)
  */
 abstract class DirectiveNode extends Node {
@@ -15,6 +17,13 @@ abstract class DirectiveNode extends Node {
     super(lineNumber);
   }
 
+  /**
+   * A node in the parse tree representing an {@code #if} construct. All instances of this class
+   * have a true subtree and a false subtree. For a plain {@code #if (cond) body #end}, the false
+   * subtree will be empty. For {@code #if (cond1) body1 #elseif (cond2) body2 #else body3 #end},
+   * the false subtree will contain a nested {@code IfNode}, as if {@code #else #if} had been
+   * used instead of {@code #elseif}.
+   */
   static class IfNode extends DirectiveNode {
     private final ExpressionNode condition;
     private final Node truePart;
@@ -27,12 +36,20 @@ abstract class DirectiveNode extends Node {
       this.falsePart = falseNode;
     }
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       Node branch = condition.isTrue(context) ? truePart : falsePart;
       return branch.evaluate(context);
     }
   }
 
+  /**
+   * A node in the parse tree representing a {@code #foreach} construct. While evaluating
+   * {@code #foreach ($x in $things)}, {$code $x} will be set to each element of {@code $things} in
+   * turn. Once the loop completes, {@code $x} will go back to whatever value it had before, which
+   * might be undefined. During loop execution, the variable {@code $foreach} is also defined.
+   * Velocity defines a number of properties in this variable, but here we only support
+   * {@code $foreach.hasNext}.
+   */
   static class ForEachNode extends DirectiveNode {
     private final String var;
     private final ExpressionNode collection;
@@ -46,7 +63,7 @@ abstract class DirectiveNode extends Node {
     }
 
     @Override
-    public Object evaluate(EvaluationContext context) {
+    Object evaluate(EvaluationContext context) {
       Object collectionValue = collection.evaluate(context);
       Iterable<?> iterable;
       if (collectionValue instanceof Iterable<?>) {
@@ -86,6 +103,14 @@ abstract class DirectiveNode extends Node {
     }
   }
 
+  /**
+   * A node in the parse tree representing a {@code #set} construct. Evaluating
+   * {@code #set ($x = 23)} will set {@code $x} to the value 23. It does not in itself produce
+   * any text in the output.
+   *
+   * <p>Velocity supports setting values within arrays or collections, with for example
+   * {@code $set ($x[$i] = $y)}. That is not currently supported here.
+   */
   static class SetNode extends DirectiveNode {
     private final String var;
     private final Node expression;
@@ -97,30 +122,22 @@ abstract class DirectiveNode extends Node {
     }
 
     @Override
-    public Object evaluate(EvaluationContext context) {
+    Object evaluate(EvaluationContext context) {
       context.setVar(var, expression.evaluate(context));
       return "";
     }
   }
 
-  static class MacroDefinitionNode extends DirectiveNode {
-    private final String name;
-    private final ImmutableList<String> parameterNames;
-    private final Node body;
-
-    MacroDefinitionNode(int lineNumber, String name, List<String> parameterNames, Node body) {
-      super(lineNumber);
-      this.name = name;
-      this.parameterNames = ImmutableList.copyOf(parameterNames);
-      this.body = body;
-    }
-
-    @Override public Object evaluate(EvaluationContext context) {
-      context.defineMacro(new Macro(lineNumber, name, parameterNames, body));
-      return "";
-    }
-  }
-
+  /**
+   * A node in the parse tree representing a macro call. If the template contains a definition like
+   * {@code #macro (mymacro $x $y) ... #end}, then a call of that macro looks like
+   * {@code #mymacro (xvalue yvalue)}. The call is represented by an instance of this class. The
+   * definition itself does not appear in the parse tree.
+   *
+   * <p>Evaluating a macro involves evaluating its arguments, temporarily setting the parameter
+   * variables ({@code $x $y} in the example) to the argument values, evaluating the macro body,
+   * and restoring any previous values that the parameter variables had.
+   */
   static class MacroCallNode extends DirectiveNode {
     private final String name;
     private final ImmutableList<Node> argumentNodes;
@@ -132,7 +149,7 @@ abstract class DirectiveNode extends Node {
     }
 
     @Override
-    public Object evaluate(EvaluationContext context) {
+    Object evaluate(EvaluationContext context) {
       Macro macro = context.getMacro(name);
       if (macro == null) {
         throw new IllegalArgumentException(

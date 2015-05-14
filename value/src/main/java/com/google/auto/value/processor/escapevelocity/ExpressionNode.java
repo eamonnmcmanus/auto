@@ -4,6 +4,9 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
+ * A node in the parse tree representing an expression. Expressions appear only inside directives,
+ * specifically {@code #set}, {@code #if}, {@code #foreach}, and macro calls.
+ *
  * @author emcmanus@google.com (Éamonn McManus)
  */
 abstract class ExpressionNode extends Node {
@@ -11,6 +14,11 @@ abstract class ExpressionNode extends Node {
     super(lineNumber);
   }
 
+  /**
+   * True if evaluating this expression yields a value that is considered true by Velocity's rules.
+   * A value is false if it is null, or Boolean.FALSE, or an empty string or collection. Every other
+   * value is true.
+   */
   boolean isTrue(EvaluationContext context) {
     Object value = evaluate(context);
     if (value instanceof Boolean) {
@@ -26,6 +34,12 @@ abstract class ExpressionNode extends Node {
     }
   }
 
+  /**
+   * The integer result of evaluating this expression.
+   *
+   * @throws EvaluationException if evaluating the expression produces an exception, or if it
+   *     yields a value that is not an Integer.
+   */
   int intValue(EvaluationContext context) {
     Object value = evaluate(context);
     if (!(value instanceof Integer)) {
@@ -38,7 +52,11 @@ abstract class ExpressionNode extends Node {
     return new EvaluationException("In expression on line " + lineNumber + ": " + message);
   }
 
-  static String show(Object value) {
+  /**
+   * Returns a string representing the given value, for use in error messages. The string includes
+   * both the value's {@code toString()} and its type.
+   */
+  private static String show(Object value) {
     if (value == null) {
       return "null";
     } else {
@@ -46,19 +64,10 @@ abstract class ExpressionNode extends Node {
     }
   }
 
-  static class ConstantExpressionNode extends ExpressionNode {
-    private final Object value;
-
-    ConstantExpressionNode(int lineNumber, Object value) {
-      super(lineNumber);
-      this.value = value;
-    }
-
-    @Override public Object evaluate(EvaluationContext context) {
-      return value;
-    }
-  }
-
+  /**
+   * Parent class of all binary expressions. In {@code #set ($a = $b + $c)}, this will be the type
+   * of the node representing {@code $b + $c}.
+   */
   private abstract static class BinaryExpressionNode extends ExpressionNode {
     final ExpressionNode lhs;
     final ExpressionNode rhs;
@@ -70,32 +79,50 @@ abstract class ExpressionNode extends Node {
     }
   }
 
+  /**
+   * A node in the parse tree representing an expression like {@code $a || $b}.
+   */
   static class OrExpressionNode extends BinaryExpressionNode {
     OrExpressionNode(ExpressionNode lhs, ExpressionNode rhs) {
       super(lhs, rhs);
     }
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       return lhs.isTrue(context) || rhs.isTrue(context);
     }
   }
 
+  /**
+   * A node in the parse tree representing an expression like {@code $a && $b}.
+   */
   static class AndExpressionNode extends BinaryExpressionNode {
     AndExpressionNode(ExpressionNode lhs, ExpressionNode rhs) {
       super(lhs, rhs);
     }
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       return lhs.isTrue(context) && rhs.isTrue(context);
     }
   }
 
+  /**
+   * A node in the parse tree representing an expression like {@code $a == $b}. The expression
+   * {@code $a != $b} is rewritten into {@code !($a == $b)} so it also ends up using this class.
+   *
+   * <p>Velocity's definition of equality differs depending on whether the objects being compared
+   * are of the same class. If so, equality comes from {@code Object.equals} as you would expect.
+   * But if they are not of the same class, they are considered equal if their {@code toString()}
+   * values are equal. This means that integer 123 equals long 123L and also string {@code "123"}.
+   * It also means that equality isn't always transitive. For example, two StringBuilder objects
+   * each containing {@code "123"} will not compare equal, even though the string {@code "123"}
+   * compares equal to each of them.
+   */
   static class EqualsExpressionNode extends BinaryExpressionNode {
     EqualsExpressionNode(ExpressionNode lhs, ExpressionNode rhs) {
       super(lhs, rhs);
     }
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       Object lhsValue = lhs.evaluate(context);
       Object rhsValue = rhs.evaluate(context);
       if (lhsValue == rhsValue) {
@@ -112,12 +139,17 @@ abstract class ExpressionNode extends Node {
     }
   }
 
+  /**
+   * A node in the parse tree representing an expression like {@code $a < $b}. Other inequalities
+   * are rewritten in terms of this one and possibly logical negation. For example {@code $a <= $b}
+   * becomes {@code !($b < $a)}.
+   */
   static class LessExpressionNode extends BinaryExpressionNode {
     LessExpressionNode(ExpressionNode lhs, ExpressionNode rhs) {
       super(lhs, rhs);
     }
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       Object lhsValue = lhs.evaluate(context);
       Object rhsValue = rhs.evaluate(context);
       for (Object value : new Object[] {lhsValue}) {
@@ -135,6 +167,10 @@ abstract class ExpressionNode extends Node {
     }
   }
 
+  /**
+   * A node in the parse tree representing an expression like {@code $a + $b}, {@code $a - $b},
+   * {@code $a * $b}, {@code $a / $b}, or {@code $a % $b}.
+   */
   static class ArithmeticExpressionNode extends BinaryExpressionNode {
     private final int op;
 
@@ -143,7 +179,7 @@ abstract class ExpressionNode extends Node {
       this.op = op;
     }
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       int lhsValue = lhs.intValue(context);
       int rhsValue = rhs.intValue(context);
       switch (op) {
@@ -169,6 +205,9 @@ abstract class ExpressionNode extends Node {
     }
   }
 
+  /**
+   * A node in the parse tree representing an expression like {@code !$a}.
+   */
   static class NotExpressionNode extends ExpressionNode {
     private final ExpressionNode expr;
 
@@ -177,7 +216,7 @@ abstract class ExpressionNode extends Node {
       this.expr = expr;
     }
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       return !expr.isTrue(context);
     }
   }

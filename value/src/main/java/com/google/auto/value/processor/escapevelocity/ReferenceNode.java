@@ -1,12 +1,8 @@
 package com.google.auto.value.processor.escapevelocity;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.primitives.Primitives;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +22,7 @@ abstract class ReferenceNode extends ExpressionNode {
       this.id = id;
     }
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       if (context.varIsDefined(id)) {
         return context.getVar(id);
       } else {
@@ -48,7 +44,7 @@ abstract class ReferenceNode extends ExpressionNode {
     private static final String[] PREFIXES = {"get", "is"};
     private static final boolean[] CHANGE_CASE = {false, true};
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       Object lhsValue = lhs.evaluate(context);
       if (lhsValue == null) {
         throw new EvaluationException("Cannot get member " + id + " of null value");
@@ -101,7 +97,7 @@ abstract class ReferenceNode extends ExpressionNode {
       this.index = index;
     }
 
-    @Override public Object evaluate(EvaluationContext context) {
+    @Override Object evaluate(EvaluationContext context) {
       Object lhsValue = lhs.evaluate(context);
       if (lhsValue == null) {
         throw new EvaluationException("Cannot index null value");

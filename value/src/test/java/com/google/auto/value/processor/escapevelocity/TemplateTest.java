@@ -1,9 +1,8 @@
 package com.google.auto.value.processor.escapevelocity;
 
-import com.google.common.collect.ImmutableList;
-
 import static com.google.common.truth.Truth.assertThat;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.velocity.VelocityContext;
@@ -22,6 +21,7 @@ import org.junit.runners.JUnit4;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -193,6 +193,11 @@ public class TemplateTest {
   }
 
   @Test
+  public void ifBraces() {
+    compare("x#{if}(false)a#{elseif}(false)b #{else}c#{end}z");
+  }
+
+  @Test
   public void forEach() {
     compare("x#foreach ($x in $c) <$x> #end y", ImmutableMap.of("c", (Object) ImmutableList.of()));
     compare("x#foreach ($x in $c) <$x> #end y",
@@ -298,6 +303,12 @@ public class TemplateTest {
   }
 
   @Test
+  public void funkyEquals() {
+    compare("#if (123 == \"123\") yes #end\n"
+        + "#if (123 == \"1234\") no #end");
+  }
+
+  @Test
   public void simpleMacro() {
     String template =
         "xyz\n"
@@ -322,13 +333,32 @@ public class TemplateTest {
 
   @Test
   public void conditionalMacroDefinition() {
-    String template =
+    String templateFalse =
         "#if (false)\n"
         + "  #macro (m) foo #end\n"
         + "#else\n"
         + "  #macro (m) bar #end\n"
         + "#end\n"
         + "#m()\n";
+    compare(templateFalse);
+
+    String templateTrue =
+        "#if (true)\n"
+        + "  #macro (m) foo #end\n"
+        + "#else\n"
+        + "  #macro (m) bar #end\n"
+        + "#end\n"
+        + "#m()\n";
+    compare(templateTrue);
+  }
+
+  @Test
+  public void forwardMacroReference() {
+    String template =
+        "#m(17)\n"
+        + "#macro (m $x)\n"
+        + "  !$x!\n"
+        + "#end";
     compare(template);
   }
 }

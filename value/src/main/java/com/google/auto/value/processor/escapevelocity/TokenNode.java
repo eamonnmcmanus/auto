@@ -1,10 +1,8 @@
 package com.google.auto.value.processor.escapevelocity;
 
-
 import com.google.common.collect.ImmutableList;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author emcmanus@google.com (Éamonn McManus)
@@ -14,8 +12,7 @@ abstract class TokenNode extends Node {
     super(lineNumber);
   }
 
-  @Override
-  public Object evaluate(EvaluationContext vars) {
+  @Override Object evaluate(EvaluationContext vars) {
     throw new UnsupportedOperationException();
   }
 

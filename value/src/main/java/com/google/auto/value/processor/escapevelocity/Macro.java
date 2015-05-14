@@ -7,6 +7,10 @@ import java.util.Deque;
 import java.util.List;
 
 /**
+ * A macro definition. Macros appear in templates using the syntax {@code #macro (m $x $y) ... #end}
+ * and each one produces an instance of this class. Evaluating a macro involves setting the
+ * parameters (here {$x $y)} and evaluating the macro body.
+ *
  * @author emcmanus@google.com (Éamonn McManus)
  */
 class Macro {

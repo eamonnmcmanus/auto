@@ -2,9 +2,8 @@ package com.google.auto.value.processor.escapevelocity;
 
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.ForEachNode;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.IfNode;
-import com.google.auto.value.processor.escapevelocity.DirectiveNode.MacroDefinitionNode;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.SetNode;
-import com.google.auto.value.processor.escapevelocity.ExpressionNode.ConstantExpressionNode;
+import com.google.auto.value.processor.escapevelocity.ConstantExpressionNode;
 import com.google.auto.value.processor.escapevelocity.Node.EmptyNode;
 import com.google.auto.value.processor.escapevelocity.Node.EofNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseIfTokenNode;
@@ -16,8 +15,10 @@ import com.google.auto.value.processor.escapevelocity.TokenNode.IfTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.MacroDefinitionTokenNode;
 import com.google.common.base.CharMatcher;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 
 import java.util.LinkedList;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -32,17 +33,19 @@ class Reparser {
       ImmutableSet.<Class<?>>of(ElseTokenNode.class, ElseIfTokenNode.class, EndTokenNode.class);
 
   private final LinkedList<Node> nodes;
+  private final Map<String, Macro> macros;
   private Node currentNode;
 
   Reparser(LinkedList<Node> nodes) {
     this.nodes = nodes;
     removeSpaceBetweenRefAndSet();
     this.currentNode = this.nodes.remove();
+    this.macros = Maps.newTreeMap();
   }
 
   Template reparse() {
     Node root = parseTo(EOF_SET, null);
-    return new Template(root);
+    return new Template(root, macros);
   }
 
   private void removeSpaceBetweenRefAndSet() {
@@ -117,8 +120,12 @@ class Reparser {
   private Node parseMacroDefinition(MacroDefinitionTokenNode macroDefinition) {
     Node body = parseTo(END_SET, macroDefinition);
     nextNode();  // Skip #end
-    return new MacroDefinitionNode(
-        macroDefinition.lineNumber, macroDefinition.name, macroDefinition.parameterNames, body);
+    if (!macros.containsKey(macroDefinition.name)) {
+      Macro macro = new Macro(
+          macroDefinition.lineNumber, macroDefinition.name, macroDefinition.parameterNames, body);
+      macros.put(macroDefinition.name, macro);
+    }
+    return new EmptyNode(macroDefinition.lineNumber);
   }
 
   private Node parseIfOrElseIf(IfOrElseIfTokenNode ifOrElseIf) {
