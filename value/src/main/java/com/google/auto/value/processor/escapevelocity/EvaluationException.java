@@ -7,6 +7,8 @@ package com.google.auto.value.processor.escapevelocity;
  * @author emcmanus@google.com (Éamonn McManus)
  */
 public class EvaluationException extends RuntimeException {
+  private static final long serialVersionUID = 1;
+
   EvaluationException(String message) {
     super(message);
   }

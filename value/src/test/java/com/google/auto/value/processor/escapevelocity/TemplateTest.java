@@ -243,6 +243,8 @@ public class TemplateTest {
     compare("$x.length()  #set ($x = 0)x", ImmutableMap.of("x", (Object) "!"));
     compare("$x.empty  #set ($x = 0)x", ImmutableMap.of("x", (Object) "!"));
     compare("$x[0]  #set ($x = 0)x", ImmutableMap.of("x", (Object) ImmutableList.of("!")));
+
+    compare("x#set ($x = 0)\n  $x!");
   }
 
   @Test
@@ -360,5 +362,16 @@ public class TemplateTest {
         + "  !$x!\n"
         + "#end";
     compare(template);
+  }
+
+  @Test
+  public void macroArgsSeparatedBySpaces() {
+    String template =
+        "#macro (sum $x $y $z)\n"
+        + "  #set ($sum = $x + $y + $z)\n"
+        + "  $sum\n"
+        + "#end\n"
+        + "#sum ($list[0] $list.get(1) 5)\n";
+    compare(template, ImmutableMap.of("list", (Object) ImmutableList.of(3, 4)));
   }
 }

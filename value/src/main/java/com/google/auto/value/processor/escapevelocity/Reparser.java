@@ -3,7 +3,6 @@ package com.google.auto.value.processor.escapevelocity;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.ForEachNode;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.IfNode;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.SetNode;
-import com.google.auto.value.processor.escapevelocity.ConstantExpressionNode;
 import com.google.auto.value.processor.escapevelocity.Node.EmptyNode;
 import com.google.auto.value.processor.escapevelocity.Node.EofNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseIfTokenNode;
@@ -52,7 +51,7 @@ class Reparser {
     assert nodes.peekLast() instanceof EofNode;
     for (int i = 0; i < nodes.size(); i++) {
       Node nodeI = nodes.get(i);
-      if (nodeI instanceof ReferenceNode) {
+      if (nodeI instanceof ReferenceNode || nodeI instanceof MacroDefinitionTokenNode) {
         Node next = nodes.get(i + 1);
         if (next instanceof ConstantExpressionNode) {
           Object constant = next.evaluate(null);
