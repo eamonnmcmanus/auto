@@ -24,7 +24,19 @@ abstract class ReferenceNode extends ExpressionNode {
 
     @Override Object evaluate(EvaluationContext context) {
       if (context.varIsDefined(id)) {
-        return context.getVar(id);
+        Object value = context.getVar(id);
+        if (value instanceof Node) {
+          System.out.println(value);
+          if (value instanceof ReferenceNode.PlainReferenceNode) {
+            System.out.println(((ReferenceNode.PlainReferenceNode) value).id);
+          }
+          // This is a macro argument. Since those are call-by-name, we defer their evaluation until
+          // they are actually used, which is here.
+          Node thunk = (Node) value;
+          return thunk.evaluate(context);
+        } else {
+          return value;
+        }
       } else {
         throw new EvaluationException("Undefined reference $" + id);
       }
@@ -60,9 +72,9 @@ abstract class ReferenceNode extends ExpressionNode {
               try {
                 return method.invoke(lhsValue);
               } catch (InvocationTargetException e) {
-                throw new EvaluationException(e.getCause());
+                throw evaluationException(e.getCause());
               } catch (Exception e) {
-                throw new EvaluationException(e.getCause());
+                throw evaluationException(e);
               }
             }
           } catch (NoSuchMethodException e) {

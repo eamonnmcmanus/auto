@@ -329,7 +329,12 @@ class Parser {
       if (c == ')') {
         break;
       }
-      parameterNodes.add(parseExpression());
+      parameterNodes.add(parsePrimitive());
+      if (c == ',') {
+        // The documentation doesn't say so, but you can apparently have an optional comma in
+        // macro calls.
+        next();
+      }
     }
     next();  // Skip )
     return new DirectiveNode.MacroCallNode(lineNumber(), directive, parameterNodes.build());
@@ -607,10 +612,21 @@ class Parser {
       nextNonSpace();
       node = parseExpression();
       expect(')');
+      skipSpace();
+      return node;
     } else if (c == '!') {
       nextNonSpace();
       node = new NotExpressionNode(parseUnaryExpression());
-    } else if (c == '$') {
+      skipSpace();
+      return node;
+    } else {
+      return parsePrimitive();
+    }
+  }
+
+  private ExpressionNode parsePrimitive() throws IOException {
+    ExpressionNode node;
+    if (c == '$') {
       next();
       node = parseReference();
     } else if (c == '"') {

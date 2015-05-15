@@ -50,7 +50,7 @@ class MethodReferenceNode extends ReferenceNode {
   @Override Object evaluate(EvaluationContext context) {
     Object lhsValue = lhs.evaluate(context);
     if (lhsValue == null) {
-      throw new EvaluationException("Cannot invoke method " + id + " on null value");
+      throw evaluationException("Cannot invoke method " + id + " on null value");
     }
     List<Object> argValues = new ArrayList<Object>();
     for (ExpressionNode arg : args) {
@@ -63,7 +63,7 @@ class MethodReferenceNode extends ReferenceNode {
       }
     }
     if (methodsWithName.isEmpty()) {
-      throw new EvaluationException("No method " + id + " in " + lhsValue.getClass().getName());
+      throw evaluationException("No method " + id + " in " + lhsValue.getClass().getName());
     }
     List<Method> compatibleMethods = Lists.newArrayList();
     for (Method method : methodsWithName) {
@@ -74,31 +74,31 @@ class MethodReferenceNode extends ReferenceNode {
     }
     switch (compatibleMethods.size()) {
       case 0:
-        throw new EvaluationException(
-            "Wrong type parameters for method " + id + " on line " + lineNumber + ": " + argValues);
+        throw evaluationException(
+            "Wrong type parameters for method " + id + ": " + argValues);
       case 1:
         return invokeMethod(Iterables.getOnlyElement(compatibleMethods), lhsValue, argValues);
       default:
-        throw new EvaluationException(
-            "Ambiguous method invocation on line " + lineNumber + ", could be one of:"
+        throw evaluationException(
+            "Ambiguous method invocation, could be one of:"
             + Joiner.on('\n').join(compatibleMethods));
     }
   }
 
-  private static Object invokeMethod(Method method, Object target, List<Object> argValues) {
+  private Object invokeMethod(Method method, Object target, List<Object> argValues) {
     if (!Modifier.isPublic(target.getClass().getModifiers())) {
       method = visibleMethod(method, target.getClass());
       if (method == null) {
-        throw new EvaluationException(
+        throw evaluationException(
             "Method is not visible in class " + target.getClass().getName() + ": " + method);
       }
     }
     try {
       return method.invoke(target, argValues.toArray());
     } catch (InvocationTargetException e) {
-      throw new EvaluationException(e.getCause());
+      throw evaluationException(e.getCause());
     } catch (Exception e) {
-      throw new EvaluationException(e);
+      throw evaluationException(e);
     }
   }
 

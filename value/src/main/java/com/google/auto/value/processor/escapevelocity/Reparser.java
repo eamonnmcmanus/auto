@@ -37,7 +37,7 @@ class Reparser {
 
   Reparser(LinkedList<Node> nodes) {
     this.nodes = nodes;
-    removeSpaceBetweenRefAndSet();
+    removeSpaceBeforeSet();
     this.currentNode = this.nodes.remove();
     this.macros = Maps.newTreeMap();
   }
@@ -47,11 +47,13 @@ class Reparser {
     return new Template(root, macros);
   }
 
-  private void removeSpaceBetweenRefAndSet() {
+  private void removeSpaceBeforeSet() {
     assert nodes.peekLast() instanceof EofNode;
     for (int i = 0; i < nodes.size(); i++) {
       Node nodeI = nodes.get(i);
-      if (nodeI instanceof ReferenceNode || nodeI instanceof MacroDefinitionTokenNode) {
+      if (nodeI instanceof ReferenceNode
+          || nodeI instanceof MacroDefinitionTokenNode
+          || nodeI instanceof SetNode) {
         Node next = nodes.get(i + 1);
         if (next instanceof ConstantExpressionNode) {
           Object constant = next.evaluate(null);

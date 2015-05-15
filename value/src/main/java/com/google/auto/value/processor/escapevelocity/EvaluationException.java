@@ -13,7 +13,7 @@ public class EvaluationException extends RuntimeException {
     super(message);
   }
 
-  EvaluationException(Throwable cause) {
+  EvaluationException(String message, Throwable cause) {
     super(cause);
   }
 }

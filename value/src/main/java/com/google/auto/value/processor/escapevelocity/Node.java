@@ -21,6 +21,14 @@ abstract class Node {
    */
   abstract Object evaluate(EvaluationContext context);
 
+  EvaluationException evaluationException(String message) {
+    return new EvaluationException("In expression on line " + lineNumber + ": " + message);
+  }
+
+  EvaluationException evaluationException(Throwable cause) {
+    return new EvaluationException("In expression on line " + lineNumber + ": " + cause, cause);
+  }
+
   /**
    * An empty node in the parse tree. This is used for example to represent the trivial "else"
    * part of an {@code #if} that does not have an explicit {@code #else}.

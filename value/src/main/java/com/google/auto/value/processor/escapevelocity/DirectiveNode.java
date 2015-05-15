@@ -140,12 +140,12 @@ abstract class DirectiveNode extends Node {
    */
   static class MacroCallNode extends DirectiveNode {
     private final String name;
-    private final ImmutableList<Node> argumentNodes;
+    private final ImmutableList<Node> thunks;
 
     MacroCallNode(int lineNumber, String name, ImmutableList<Node> argumentNodes) {
       super(lineNumber);
       this.name = name;
-      this.argumentNodes = argumentNodes;
+      this.thunks = argumentNodes;
     }
 
     @Override
@@ -156,11 +156,7 @@ abstract class DirectiveNode extends Node {
             "#" + name + " on line " + lineNumber
                 + " is neither a standard directive nor a macro that has been defined");
       }
-      ImmutableList.Builder<Object> arguments = ImmutableList.builder();
-      for (Node argumentNode : argumentNodes) {
-        arguments.add(argumentNode.evaluate(context));
-      }
-      return macro.evaluate(context, arguments.build());
+      return macro.evaluate(context, thunks);
     }
   }
 }

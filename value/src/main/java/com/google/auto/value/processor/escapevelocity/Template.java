@@ -23,7 +23,8 @@ public class Template {
   }
 
   public String evaluate(Map<String, Object> vars) {
-    EvaluationContext evaluationContext = new EvaluationContext(vars, macros);
+    EvaluationContext evaluationContext =
+        new EvaluationContext.PlainEvaluationContext(vars, macros);
     return String.valueOf(root.evaluate(evaluationContext));
   }
 }

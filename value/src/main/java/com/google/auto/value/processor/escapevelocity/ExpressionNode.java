@@ -48,10 +48,6 @@ abstract class ExpressionNode extends Node {
     return (Integer) value;
   }
 
-  EvaluationException evaluationException(String message) {
-    return new EvaluationException("In expression on line " + lineNumber + ": " + message);
-  }
-
   /**
    * Returns a string representing the given value, for use in error messages. The string includes
    * both the value's {@code toString()} and its type.

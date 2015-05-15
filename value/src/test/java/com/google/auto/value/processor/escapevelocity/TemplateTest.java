@@ -2,6 +2,8 @@ package com.google.auto.value.processor.escapevelocity;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import com.google.common.base.Supplier;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
@@ -22,6 +24,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -49,11 +52,22 @@ public class TemplateTest {
     velocityRuntimeInstance.init();
   }
 
+  private void compare(String template) {
+    compare(template, ImmutableMap.<String, Object>of());
+  }
+
   private void compare(String template, Map<String, Object> vars) {
-    String velocityRendered = velocityRender(template, vars);
+    compare(template, Suppliers.ofInstance(vars));
+  }
+
+  private void compare(String template, Supplier<Map<String, Object>> varsSupplier) {
+    Map<String, Object> velocityVars = varsSupplier.get();
+    String velocityRendered = velocityRender(template, velocityVars);
+    Map<String, Object> escapeVelocityVars = varsSupplier.get();
     String escapeVelocityRendered;
     try {
-      escapeVelocityRendered = Template.from(new StringReader(template)).evaluate(vars);
+      escapeVelocityRendered =
+          Template.from(new StringReader(template)).evaluate(escapeVelocityVars);
     } catch (IOException e) {
       throw new AssertionError(e);
     }
@@ -62,10 +76,6 @@ public class TemplateTest {
       System.out.println("from escape: <" + escapeVelocityRendered + ">");
     }
     assertThat(escapeVelocityRendered).isEqualTo(velocityRendered);
-  }
-
-  private void compare(String template) {
-    compare(template, ImmutableMap.<String, Object>of());
   }
 
   private String velocityRender(String template, Map<String, Object> vars) {
@@ -92,6 +102,11 @@ public class TemplateTest {
   @Test
   public void literalOnly() {
     compare("In the reign of James the Second \n It was generally reckoned\n");
+  }
+
+  @Test
+  public void comment() {
+    compare("line 1 ##\n  line 2");
   }
 
   @Test
@@ -245,6 +260,11 @@ public class TemplateTest {
     compare("$x[0]  #set ($x = 0)x", ImmutableMap.of("x", (Object) ImmutableList.of("!")));
 
     compare("x#set ($x = 0)\n  $x!");
+
+    compare("x  #set($x = 0)  #set($x = 0)  #set($x = 0)  y");
+
+    // TODO(emcmanus): fix this. grrr.
+    // compare("x ##\n  #set($x = 0)  y");
   }
 
   @Test
@@ -373,5 +393,94 @@ public class TemplateTest {
         + "#end\n"
         + "#sum ($list[0] $list.get(1) 5)\n";
     compare(template, ImmutableMap.of("list", (Object) ImmutableList.of(3, 4)));
+  }
+
+  @Test
+  public void macroArgsSeparatedByCommas() {
+    String template =
+        "#macro (sum $x $y $z)\n"
+        + "  #set ($sum = $x + $y + $z)\n"
+        + "  $sum\n"
+        + "#end\n"
+        + "#sum ($list[0],$list.get(1),5)\n";
+    compare(template, ImmutableMap.of("list", (Object) ImmutableList.of(3, 4)));
+  }
+
+  // Macro tests based on http://wiki.apache.org/velocity/MacroEvaluationStrategy
+
+  @Test
+  public void callBySharing() {
+    // The example on the web page is wrong because $map.put('x', 'a') evaluates to null, which
+    // Velocity rejects as a render error. We fix this by ensuring that the returned previous value
+    // is not null.
+    String template =
+        "#macro(callBySharing $x $map)\n"
+        + "  #set($x = \"a\")\n"
+        + "  $map.put(\"x\", \"a\")\n"
+        + "#end\n"
+        + "#callBySharing($y $map)\n"
+        + "y is $y\n"
+        + "map[x] is $map[\"x\"]\n";
+    Supplier<Map<String, Object>> makeMap = new Supplier<Map<String, Object>>() {
+      @Override public Map<String, Object> get() {
+        return ImmutableMap.<String, Object>of(
+            "y", "y",
+            "map", new HashMap<String, Object>(ImmutableMap.of("x", (Object) "foo")));
+      }
+    };
+    compare(template, makeMap);
+  }
+
+  @Test
+  public void callByMacro() {
+    String template =
+        "#macro(callByMacro1 $p)\n"
+        + "  not using\n"
+        + "#end\n"
+        + "#macro(callByMacro2 $p)\n"
+        + "  using: $p\n"
+        + "  using again: $p\n"
+        + "#end\n"
+        + "#callByMacro1($x.add(\"t\"))\n"
+        + "x = $x\n"
+        + "#callByMacro2($x.add(\"t\"))\n";
+    Supplier<Map<String, Object>> makeMap = new Supplier<Map<String, Object>>() {
+      @Override public Map<String, Object> get() {
+        return ImmutableMap.<String, Object>of("x", new ArrayList<Object>());
+      }
+    };
+    compare(template, makeMap);
+  }
+
+  @Test
+  public void callByValue() {
+    String template =
+        "#macro(callByValueSwap $a $b)\n"
+        + "  $a $b becomes\n"
+        + "  #set($tmp = $a)\n"
+        + "  #set($a = $b)\n"
+        + "  #set($b = $tmp)\n"
+        + "  $a $b\n"
+        + "#end"
+        + "#callByValueSwap(\"a\", \"b\")";
+    compare(template);
+  }
+
+  // First "Call by macro expansion example" doesn't apply so long as we don't have map literals.
+
+  @Test
+  public void nameCaptureSwap() {
+    String template =
+        "#macro(nameCaptureSwap $a $b)\n"
+        + "  $a $b becomes\n"
+        + "  #set($tmp = $a)\n"
+        + "  #set($a = $b)\n"
+        + "  #set($b = $tmp)\n"
+        + "  $a $b\n"
+        + "#end\n"
+        + "#set($x = \"a\")\n"
+        + "#set($tmp = \"b\")\n"
+        + "#nameCaptureSwap($x $tmp)";
+    compare(template);
   }
 }

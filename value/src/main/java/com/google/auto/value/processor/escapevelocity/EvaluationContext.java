@@ -13,22 +13,10 @@ import java.util.TreeMap;
  *
  * @author emcmanus@google.com (Éamonn McManus)
  */
-class EvaluationContext {
-  private final Map<String, Object> vars;
-  private final ImmutableMap<String, Macro> macros;
+interface EvaluationContext {
+  Object getVar(String var);
 
-  EvaluationContext(Map<String, Object> vars, ImmutableMap<String, Macro> macros) {
-    this.vars = new TreeMap<String, Object>(vars);
-    this.macros = macros;
-  }
-
-  Object getVar(String var) {
-    return vars.get(var);
-  }
-
-  boolean varIsDefined(String var) {
-    return vars.containsKey(var);
-  }
+  boolean varIsDefined(String var);
 
   /**
    * Set the given variable to the given value.
@@ -36,27 +24,53 @@ class EvaluationContext {
    * @return a Runnable that will restore the variable to the value it had before. If the variable
    * was undefined before this method was executed, the Runnable will make it undefined again.
    */
-  Runnable setVar(final String var, Object value) {
-    Runnable undo;
-    if (vars.containsKey(var)) {
-      final Object oldValue = vars.get(var);
-      undo = new Runnable() {
-        @Override public void run() {
-          vars.put(var, oldValue);
-        }
-      };
-    } else {
-      undo = new Runnable() {
-        @Override public void run() {
-          vars.remove(var);
-        }
-      };
-    }
-    vars.put(var, value);
-    return undo;
-  }
+  Runnable setVar(final String var, Object value);
 
-  Macro getMacro(String name) {
-    return macros.get(name);
+  Macro getMacro(String name);
+
+  class PlainEvaluationContext implements EvaluationContext {
+    private final Map<String, Object> vars;
+    private final ImmutableMap<String, Macro> macros;
+
+    PlainEvaluationContext(Map<String, Object> vars, ImmutableMap<String, Macro> macros) {
+      this.vars = new TreeMap<String, Object>(vars);
+      this.macros = macros;
+    }
+
+    @Override
+    public Object getVar(String var) {
+      return vars.get(var);
+    }
+
+    @Override
+    public boolean varIsDefined(String var) {
+      return vars.containsKey(var);
+    }
+
+    @Override
+    public Runnable setVar(final String var, Object value) {
+      Runnable undo;
+      if (vars.containsKey(var)) {
+        final Object oldValue = vars.get(var);
+        undo = new Runnable() {
+          @Override public void run() {
+            vars.put(var, oldValue);
+          }
+        };
+      } else {
+        undo = new Runnable() {
+          @Override public void run() {
+            vars.remove(var);
+          }
+        };
+      }
+      vars.put(var, value);
+      return undo;
+    }
+
+    @Override
+    public Macro getMacro(String name) {
+      return macros.get(name);
+    }
   }
 }
