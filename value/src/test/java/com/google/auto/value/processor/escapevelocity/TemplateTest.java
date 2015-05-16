@@ -1,6 +1,7 @@
 package com.google.auto.value.processor.escapevelocity;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assert_;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
@@ -71,10 +72,9 @@ public class TemplateTest {
     } catch (IOException e) {
       throw new AssertionError(e);
     }
-    if (!escapeVelocityRendered.equals(velocityRendered)) {
-      System.out.println("from velocity: <" + velocityRendered + ">");
-      System.out.println("from escape: <" + escapeVelocityRendered + ">");
-    }
+    String failure = "from velocity: <" + velocityRendered + ">\n"
+        + "from escape velocity: <" + escapeVelocityRendered + ">\n";
+    assert_().withFailureMessage(failure).that(escapeVelocityRendered).isEqualTo(velocityRendered);
     assertThat(escapeVelocityRendered).isEqualTo(velocityRendered);
   }
 
@@ -281,6 +281,12 @@ public class TemplateTest {
   }
 
   @Test
+  public void associativity() {
+    compare("#set ($x = 3 - 2 - 1) $x");
+    compare("#set ($x = 16 / 4 / 4) $x");
+  }
+
+  @Test
   public void and() {
     compare("#set ($x = false && false) $x");
     compare("#set ($x = false && true) $x");
@@ -322,6 +328,12 @@ public class TemplateTest {
         }
       }
     }
+  }
+
+  @Test
+  public void relationPrecedence() {
+    compare("#set ($x = 1 < 2 == 2 < 1) $x");
+    compare("#set ($x = 2 < 1 == 2 < 1) $x");
   }
 
   @Test

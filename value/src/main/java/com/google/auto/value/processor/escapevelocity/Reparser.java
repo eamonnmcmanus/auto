@@ -21,6 +21,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ * The second phase of parsing. See {@link Parser#parse()} for a description of the phases and why
+ * we need them.
+ *
  * @author emcmanus@google.com (Éamonn McManus)
  */
 class Reparser {
@@ -31,9 +34,19 @@ class Reparser {
   private static final ImmutableSet<Class<?>> ELSE_ELSE_IF_END_SET =
       ImmutableSet.<Class<?>>of(ElseTokenNode.class, ElseIfTokenNode.class, EndTokenNode.class);
 
+  /**
+   * The nodes that make up the input sequence. Nodes are removed one by one from this list as
+   * parsing proceeds. At any time, {@link #currentNode} is the node being examined.
+   */
   private final LinkedList<Node> nodes;
-  private final Map<String, Macro> macros;
   private Node currentNode;
+
+  /**
+   * Macros are removed from the input as they are found. They do not appear in the output parse
+   * tree. Macro definitions are not executed in place but are all applied before template rendering
+   * starts. This means that a macro can be referenced before it is defined.
+   */
+  private final Map<String, Macro> macros;
 
   Reparser(LinkedList<Node> nodes) {
     this.nodes = nodes;
@@ -47,6 +60,15 @@ class Reparser {
     return new Template(root, macros);
   }
 
+  /**
+   * Remove spaces between certain tokens and {@code #set}. This hack is needed to match what
+   * appears to be special treatment of spaces before {@code #set} directives. If you have
+   * <i>thing</i> <i>whitespace</i> {@code #set}, then the whitespace is deleted if the <i>thing</i>
+   * is a reference ({@code $x} or {@code $x.foo} etc), or a macro definition, or another {@code
+   * #set}. Space is also deleted between {@code ##} and {@code #set}, and we have yet to match that
+   * behaviour.
+   */
+  // TODO(emcmanus): delete space after ## and before #set.
   private void removeSpaceBeforeSet() {
     assert nodes.peekLast() instanceof EofNode;
     for (int i = 0; i < nodes.size(); i++) {
@@ -67,14 +89,19 @@ class Reparser {
     }
   }
 
+  /**
+   * Cons together parsed subtrees until one of the token types in {@code stopSet} is encountered.
+   * If this is the top level, {@code stopSet} will include {@link EofNode} so parsing will stop
+   * when it reaches the end of the input. Otherwise, if an {@code EofNode} is encountered it is an
+   * error because we have something like {@code #if} without {@code #end}.
+   */
   private Node parseTo(Set<Class<?>> stopSet, TokenNode forWhat) {
     int startLineNumber = (forWhat == null) ? 1 : forWhat.lineNumber;
     Node node = new EmptyNode(startLineNumber);
     while (!stopSet.contains(currentNode.getClass())) {
       if (currentNode instanceof EofNode) {
-        throw new IllegalArgumentException(
-            "Reached end of file while parsing " + forWhat.name()
-                + " starting on line " + startLineNumber);
+        throw new ParseException(
+            "Reached end of file while parsing " + forWhat.name(), startLineNumber);
       }
       Node parsed;
       if (currentNode instanceof TokenNode) {

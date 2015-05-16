@@ -5,6 +5,10 @@ import com.google.common.collect.ImmutableList;
 import java.util.List;
 
 /**
+ * A parsing node that will be deleted during the construction of the parse tree, to be replaced
+ * by a higher-level construct such as {@link DirectiveNode.IfNode}. See {@link Parser#parse()}
+ * for a description of the way these tokens work.
+ *
  * @author emcmanus@google.com (Éamonn McManus)
  */
 abstract class TokenNode extends Node {
@@ -12,10 +16,17 @@ abstract class TokenNode extends Node {
     super(lineNumber);
   }
 
+  /**
+   * This method always throws an exception because this node should never be found in the parse
+   * tree.
+   */
   @Override Object evaluate(EvaluationContext vars) {
     throw new UnsupportedOperationException();
   }
 
+  /**
+   * The name of the token, for use in parse error messages.
+   */
   abstract String name();
 
   static final class EndTokenNode extends TokenNode {

@@ -1,11 +1,8 @@
 package com.google.auto.value.processor.escapevelocity;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Queues;
 
-import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 
@@ -56,6 +53,19 @@ class Macro {
     }
   }
 
+  /**
+   * The context for evaluation within macros. This wraps an existing {@code EvaluationContext}
+   * but intercepts reads of the macro's parameters so that they result in a call-by-name evaluation
+   * of whatever was passed as the parameter. For example, if you write...
+   * <pre>{@code
+   * #macro (mymacro $x)
+   * $x $x
+   * #end
+   * #mymacro($foo.bar(23))
+   * }</pre>
+   * ...then the {@code #mymacro} call will result in {@code $foo.bar(23)} being evaluated twice,
+   * once for each time {@code $x} appears.
+   */
   static class MacroEvaluationContext implements EvaluationContext {
     private final Map<String, Node> parameterThunks;
     private final EvaluationContext originalEvaluationContext;
@@ -72,6 +82,11 @@ class Macro {
       if (thunk == null) {
         return originalEvaluationContext.getVar(var);
       } else {
+        // Evaluate the thunk in the context where it appeared, not in this context. Otherwise
+        // if you pass $x to a parameter called $x you would get an infinite recursion. Likewise
+        // if you had #macro(mymacro $x $y) and a call #mymacro($y 23), you would expect that $x
+        // would expand to whatever $y meant at the call site, rather than to the value of the $y
+        // parameter.
         return thunk.evaluate(originalEvaluationContext);
       }
     }

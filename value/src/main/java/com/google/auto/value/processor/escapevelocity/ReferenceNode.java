@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * A node in the parse tree that is a reference. A reference is anything beginning with {@code $},
+ * such as {@code $x} or {@code $x[$i].foo($j)}.
+ *
  * @author emcmanus@google.com (Éamonn McManus)
  */
 abstract class ReferenceNode extends ExpressionNode {
@@ -14,6 +17,12 @@ abstract class ReferenceNode extends ExpressionNode {
     super(lineNumber);
   }
 
+  /**
+   * A node in the parse tree that is a plain reference such as {@code $x}. This node may appear
+   * inside a more complex reference like {@code $x.foo}.
+   *
+   * @author emcmanus@google.com (Éamonn McManus)
+   */
   static class PlainReferenceNode extends ReferenceNode {
     final String id;
 
@@ -24,25 +33,17 @@ abstract class ReferenceNode extends ExpressionNode {
 
     @Override Object evaluate(EvaluationContext context) {
       if (context.varIsDefined(id)) {
-        Object value = context.getVar(id);
-        if (value instanceof Node) {
-          System.out.println(value);
-          if (value instanceof ReferenceNode.PlainReferenceNode) {
-            System.out.println(((ReferenceNode.PlainReferenceNode) value).id);
-          }
-          // This is a macro argument. Since those are call-by-name, we defer their evaluation until
-          // they are actually used, which is here.
-          Node thunk = (Node) value;
-          return thunk.evaluate(context);
-        } else {
-          return value;
-        }
+        return context.getVar(id);
       } else {
         throw new EvaluationException("Undefined reference $" + id);
       }
     }
   }
 
+  /**
+   * A node in the parse tree that is a reference to a property of another reference, like
+   * {@code $x.foo} or {@code $x[$i].foo}.
+   */
   static class MemberReferenceNode extends ReferenceNode {
     final ReferenceNode lhs;
     final String id;
@@ -61,6 +62,8 @@ abstract class ReferenceNode extends ExpressionNode {
       if (lhsValue == null) {
         throw new EvaluationException("Cannot get member " + id + " of null value");
       }
+      // Velocity specifies that, given a reference .foo, it will first look for getfoo() and then
+      // for getFoo(), and likewise given .Foo it will look for getFoo() and then getfoo().
       for (String prefix : PREFIXES) {
         for (boolean changeCase : CHANGE_CASE) {
           String baseId = changeCase ? changeInitialCase(id) : id;
@@ -68,7 +71,8 @@ abstract class ReferenceNode extends ExpressionNode {
           Method method;
           try {
             method = lhsValue.getClass().getMethod(methodName);
-            if (prefix.equals("get") || method.getReturnType().equals(boolean.class)) {
+            if (!prefix.equals("is") || method.getReturnType().equals(boolean.class)) {
+              // Don't consider methods that happen to be called isFoo() but don't return boolean.
               try {
                 return method.invoke(lhsValue);
               } catch (InvocationTargetException e) {
@@ -99,6 +103,11 @@ abstract class ReferenceNode extends ExpressionNode {
     }
   }
 
+  /**
+   * A node in the parse tree that is an indexing of a reference, like {@code $x[0]} or
+   * {@code $x.foo[$i]}. Indexing is array indexing or calling the {@code get} method of a list
+   * or a map.
+   */
   static class IndexReferenceNode extends ReferenceNode {
     final ReferenceNode lhs;
     final ExpressionNode index;

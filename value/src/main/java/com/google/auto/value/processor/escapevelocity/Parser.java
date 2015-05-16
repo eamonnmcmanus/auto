@@ -36,6 +36,7 @@ class Parser {
   private static final int EOF = -1;
 
   private final LineNumberReader reader;
+
   /**
    * The invariant of this parser is that {@code c} is always the next character of interest.
    * This means that we never have to "unget" a character by reading too far. For example, after
@@ -73,7 +74,7 @@ class Parser {
    * </pre>examples above. But a construct such as the {@code #if ... #end} mentioned above will
    * become a single IfNode in the parse tree in the second phase.
    *
-   * <p>The main reason for this approach is that Velocity has two kinds of lexical scopes. At the
+   * <p>The main reason for this approach is that Velocity has two kinds of lexical contexts. At the
    * top level, there can be arbitrary literal text, references like <code>${x.foo()}</code>, and
    * directives like {@code #if} or {@code #set}. Inside the parentheses of a directive, however,
    * neither arbitrary text nor directives can appear, but expressions can, so we need to tokenize
@@ -329,7 +330,7 @@ class Parser {
       if (c == ')') {
         break;
       }
-      parameterNodes.add(parsePrimitive());
+      parameterNodes.add(parsePrimary());
       if (c == ',') {
         // The documentation doesn't say so, but you can apparently have an optional comma in
         // macro calls.
@@ -513,6 +514,13 @@ class Parser {
     return new IndexReferenceNode(lhs, index);
   }
 
+  /**
+   * Parses an expression, which can only occur within a directive like {@code #if} or {@code #set}.
+   * <pre>{@code
+   * <expression> -> <and-expression> |
+   *                 <expression> || <and-expression>
+   * }</pre>
+   */
   private ExpressionNode parseExpression() throws IOException {
     skipSpace();
 
@@ -528,62 +536,109 @@ class Parser {
     return lhs;
   }
 
+  /**
+   * Parses an expression where any operators have at least the precedence of {@code &&}.
+   * <pre>{@code
+   * <and-expression> -> <relational-expression> |
+   *                     <and-expression> && <relational-expression>
+   * }</pre>
+   */
   private ExpressionNode parseAndExpression() throws IOException {
-    ExpressionNode lhs = parseRelationalExpression();
+    ExpressionNode lhs = parseEqualityExpression();
     while (c == '&') {
       next();
       if (c != '&') {
         throw parseError("Expected &&, not just &");
       }
       nextNonSpace();
-      lhs = new AndExpressionNode(lhs, parseRelationalExpression());
+      lhs = new AndExpressionNode(lhs, parseEqualityExpression());
     }
     return lhs;
   }
 
-  private ExpressionNode parseRelationalExpression() throws IOException {
-    ExpressionNode lhs = parseAdditiveExpression();
-    switch (c) {
-      case '=':
-        next();
-        if (c != '=') {
-          throw parseError("Expected ==, not just =");
-        }
-        nextNonSpace();
-        return new EqualsExpressionNode(lhs, parseAdditiveExpression());
-      case '!':
-        next();
-        if (c != '=') {
-          throw parseError("Expected !=, not just !");
-        }
-        nextNonSpace();
-        return new NotExpressionNode(new EqualsExpressionNode(lhs, parseAdditiveExpression()));
-      case '<':
-        next();
-        if (c == '=') {
+  /**
+   * Parses an expression where any operators have at least the precedence of {@code ==}.
+   * <pre>{@code
+   * <equality-exression> -> <relational-expression> |
+   *                         <equality-expression> <equality-op> <relational-expression>
+   * <equality-op> -> == | !=
+   * }</pre>
+   */
+  private ExpressionNode parseEqualityExpression() throws IOException {
+    ExpressionNode lhs = parseRelationalExpression();
+    while (true) {
+      switch (c) {
+        case '=':
+          next();
+          if (c != '=') {
+            throw parseError("Expected ==, not just =");
+          }
           nextNonSpace();
-          // a <= b  <=>  !(b < a)
-          return new NotExpressionNode(new LessExpressionNode(parseAdditiveExpression(), lhs));
-        } else {
-          skipSpace();
-          return new LessExpressionNode(lhs, parseAdditiveExpression());
-        }
-      case '>':
-        next();
-        if (c == '=') {
+          lhs = new EqualsExpressionNode(lhs, parseRelationalExpression());
+          break;
+        case '!':
+          next();
+          if (c != '=') {
+            throw parseError("Expected !=, not just !");
+          }
           nextNonSpace();
-          // a >= b  <=>  !(a < b)
-          return new NotExpressionNode(new LessExpressionNode(lhs, parseAdditiveExpression()));
-        } else {
-          skipSpace();
-          // a > b  <=>  b < a
-          return new LessExpressionNode(parseAdditiveExpression(), lhs);
-        }
-      default:
-        return lhs;
+          lhs = new NotExpressionNode(new EqualsExpressionNode(lhs, parseAdditiveExpression()));
+          break;
+        default:
+          return lhs;
+      }
     }
   }
 
+  /**
+   * Parses an expression where any operators have at least the precedence of {@code <}.
+   * <pre>{@code
+   * <relational-expression> -> <additive-expression> |
+   *                            <relational-expression> <relation> <additive-expression>
+   * <relation> -> < | <= | > | >=
+   * }</pre>
+   */
+  private ExpressionNode parseRelationalExpression() throws IOException {
+    ExpressionNode lhs = parseAdditiveExpression();
+    while (true) {
+      switch (c) {
+        case '<':
+          next();
+          if (c == '=') {
+            nextNonSpace();
+            // a <= b  <=>  !(b < a)
+            lhs = new NotExpressionNode(new LessExpressionNode(parseAdditiveExpression(), lhs));
+          } else {
+            skipSpace();
+            lhs = new LessExpressionNode(lhs, parseAdditiveExpression());
+          }
+          break;
+        case '>':
+          next();
+          if (c == '=') {
+            nextNonSpace();
+            // a >= b  <=>  !(a < b)
+            lhs = new NotExpressionNode(new LessExpressionNode(lhs, parseAdditiveExpression()));
+          } else {
+            skipSpace();
+            // a > b  <=>  b < a
+            lhs = new LessExpressionNode(parseAdditiveExpression(), lhs);
+          }
+          break;
+        default:
+          return lhs;
+      }
+    }
+  }
+
+  /**
+   * Parses an expression where any operators have at least the precedence of {@code +}.
+   * <pre>{@code
+   * <additive-expression> -> <multiplicative-expression> |
+   *                          <additive-expression> <add-op> <multiplicative-expression>
+   * <add-op> -> + | -
+   * }</pre>
+   */
   private ExpressionNode parseAdditiveExpression() throws IOException {
     ExpressionNode lhs = parseMultiplicativeExpression();
     while (c == '+' || c == '-') {
@@ -595,6 +650,14 @@ class Parser {
     return lhs;
   }
 
+  /**
+   * Parses an expression where any operators have at least the precedence of {@code *}.
+   * <pre>{@code
+   * <multiplicative-expression> -> <unary-expression> |
+   *                                <multiplicative-expression> <mult-op> <unary-expression>
+   * <mult-op> -> * | / | %
+   * }</pre>
+   */
   private ExpressionNode parseMultiplicativeExpression() throws IOException {
     ExpressionNode lhs = parseUnaryExpression();
     while (c == '*' || c == '/' || c == '%') {
@@ -606,6 +669,14 @@ class Parser {
     return lhs;
   }
 
+  /**
+   * Parses an expression not containing any operators (except inside parentheses).
+   * <pre>{@code
+   * <unary-expression> -> <primary> |
+   *                       ( <expression> ) |
+   *                       ! <unary-expression>
+   * }</pre>
+   */
   private ExpressionNode parseUnaryExpression() throws IOException {
     ExpressionNode node;
     if (c == '(') {
@@ -620,11 +691,21 @@ class Parser {
       skipSpace();
       return node;
     } else {
-      return parsePrimitive();
+      return parsePrimary();
     }
   }
 
-  private ExpressionNode parsePrimitive() throws IOException {
+  /**
+   * Parses an expression containing only literals or references.
+   * <pre>{@code
+   * <primary> -> <reference> |
+   *              <string-literal> |
+   *              <integer-literal> |
+   *              true |
+   *              false
+   * }</pre>
+   */
+  private ExpressionNode parsePrimary() throws IOException {
     ExpressionNode node;
     if (c == '$') {
       next();
@@ -632,6 +713,8 @@ class Parser {
     } else if (c == '"') {
       node = parseStringLiteral();
     } else if (c == '-') {
+      // Velocity does not have a negation operator. If we see '-' it must be the start of a
+      // negative integer literal.
       next();
       node = parseIntLiteral("-");
     } else if (Character.isDigit(c)) {
@@ -652,6 +735,12 @@ class Parser {
     while (c != '"') {
       if (c == '\n' || c == EOF) {
         throw parseError("Unterminated string constant");
+      }
+      if (c == '$' || c == '\\') {
+        // In real Velocity, you can have a $ reference expanded inside a "" string literal.
+        // There are also '' string literals where that is not so. We haven't needed that yet
+        // so it's not supported.
+        throw parseError("Escapes or references in string constants are not currently supported");
       }
       sb.appendCodePoint(c);
       next();
@@ -698,6 +787,10 @@ class Parser {
     return id.toString();
   }
 
+  /**
+   * Returns an exception to be thrown describing a parse error with the given message, and
+   * including information about where it occurred.
+   */
   private ParseException parseError(String message) throws IOException {
     StringBuilder context = new StringBuilder();
     if (c == EOF) {
