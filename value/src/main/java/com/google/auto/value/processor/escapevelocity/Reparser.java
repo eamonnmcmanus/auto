@@ -5,6 +5,7 @@ import com.google.auto.value.processor.escapevelocity.DirectiveNode.IfNode;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.SetNode;
 import com.google.auto.value.processor.escapevelocity.Node.EmptyNode;
 import com.google.auto.value.processor.escapevelocity.Node.EofNode;
+import com.google.auto.value.processor.escapevelocity.TokenNode.CommentNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseIfTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.EndTokenNode;
@@ -64,16 +65,15 @@ class Reparser {
    * Remove spaces between certain tokens and {@code #set}. This hack is needed to match what
    * appears to be special treatment of spaces before {@code #set} directives. If you have
    * <i>thing</i> <i>whitespace</i> {@code #set}, then the whitespace is deleted if the <i>thing</i>
-   * is a reference ({@code $x} or {@code $x.foo} etc), or a macro definition, or another {@code
-   * #set}. Space is also deleted between {@code ##} and {@code #set}, and we have yet to match that
-   * behaviour.
+   * is a comment ({@code ##...\n}); a reference ({@code $x} or {@code $x.foo} etc); a macro
+   * definition; or another {@code #set}.
    */
-  // TODO(emcmanus): delete space after ## and before #set.
   private void removeSpaceBeforeSet() {
     assert nodes.peekLast() instanceof EofNode;
     for (int i = 0; i < nodes.size(); i++) {
       Node nodeI = nodes.get(i);
-      if (nodeI instanceof ReferenceNode
+      if (nodeI instanceof CommentNode
+          || nodeI instanceof ReferenceNode
           || nodeI instanceof MacroDefinitionTokenNode
           || nodeI instanceof SetNode) {
         Node next = nodes.get(i + 1);
@@ -82,6 +82,9 @@ class Reparser {
           if (constant instanceof String
               && CharMatcher.WHITESPACE.matchesAllOf((String) constant)
               && nodes.get(i + 2) instanceof SetNode) {
+            // The node at i is one of the trigger nodes listed above; the node at i + 1 consists
+            // of whitespace only; and the node at i + 2 is a #set. Delete the i + 1 node. That
+            // means that the next time through the loop we will examine the #set.
             nodes.remove(i + 1);
           }
         }
@@ -127,7 +130,9 @@ class Reparser {
   private Node parseTokenNode() {
     TokenNode tokenNode = (TokenNode) currentNode;
     nextNode();
-    if (tokenNode instanceof IfTokenNode) {
+    if (tokenNode instanceof CommentNode) {
+      return new EmptyNode(tokenNode.lineNumber);
+    } else if (tokenNode instanceof IfTokenNode) {
       return parseIfOrElseIf((IfTokenNode) tokenNode);
     } else if (tokenNode instanceof ForEachTokenNode) {
       return parseForEach((ForEachTokenNode) tokenNode);

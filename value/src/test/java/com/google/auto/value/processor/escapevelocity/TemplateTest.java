@@ -263,8 +263,7 @@ public class TemplateTest {
 
     compare("x  #set($x = 0)  #set($x = 0)  #set($x = 0)  y");
 
-    // TODO(emcmanus): fix this. grrr.
-    // compare("x ##\n  #set($x = 0)  y");
+    compare("x ## comment\n  #set($x = 0)  y");
   }
 
   @Test

@@ -39,6 +39,22 @@ abstract class TokenNode extends Node {
     }
   }
 
+  /**
+   * A node in the parse tree representing a comment. Comments are introduced by {@code ##} and
+   * extend to the end of the line. The only reason for recording comment nodes is so that we can
+   * skip space between a comment and a following {@code #set}, to be compatible with Velocity
+   * behaviour.
+   */
+  static class CommentNode extends TokenNode {
+    CommentNode(int lineNumber) {
+      super(lineNumber);
+    }
+
+    @Override String name() {
+      return "##";
+    }
+  }
+
   abstract static class IfOrElseIfTokenNode extends TokenNode {
     final ExpressionNode condition;
 

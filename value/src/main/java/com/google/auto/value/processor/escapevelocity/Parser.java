@@ -11,6 +11,7 @@ import com.google.auto.value.processor.escapevelocity.Node.EofNode;
 import com.google.auto.value.processor.escapevelocity.ReferenceNode.IndexReferenceNode;
 import com.google.auto.value.processor.escapevelocity.ReferenceNode.MemberReferenceNode;
 import com.google.auto.value.processor.escapevelocity.ReferenceNode.PlainReferenceNode;
+import com.google.auto.value.processor.escapevelocity.TokenNode.CommentNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseIfTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.EndTokenNode;
@@ -153,7 +154,7 @@ class Parser {
     while (c == '#') {
       next();
       if (c == '#') {
-        skipComment();
+        return parseComment();
       } else {
         return parseDirective();
       }
@@ -345,11 +346,12 @@ class Parser {
    * Parses and discards a comment, which is {@code ##} followed by any number of characters up to
    * and including the next newline.
    */
-  private void skipComment() throws IOException {
+  private CommentNode parseComment() throws IOException {
     while (c != '\n' && c != EOF) {
       next();
     }
     next();
+    return new CommentNode(lineNumber());
   }
 
   /**
