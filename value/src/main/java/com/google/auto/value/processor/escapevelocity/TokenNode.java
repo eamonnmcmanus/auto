@@ -45,8 +45,8 @@ abstract class TokenNode extends Node {
    * skip space between a comment and a following {@code #set}, to be compatible with Velocity
    * behaviour.
    */
-  static class CommentNode extends TokenNode {
-    CommentNode(int lineNumber) {
+  static class CommentTokenNode extends TokenNode {
+    CommentTokenNode(int lineNumber) {
       super(lineNumber);
     }
 

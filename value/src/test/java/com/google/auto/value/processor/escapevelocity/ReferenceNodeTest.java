@@ -1,7 +1,7 @@
 package com.google.auto.value.processor.escapevelocity;
 
+import com.google.auto.value.processor.escapevelocity.ReferenceNode.MethodReferenceNode;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Primitives;
 import com.google.common.truth.Expect;
@@ -23,7 +23,7 @@ import static com.google.common.truth.Truth.assertThat;
  * @author emcmanus@google.com (Éamonn McManus)
  */
 @RunWith(JUnit4.class)
-public class MethodReferenceNodeTest {
+public class ReferenceNodeTest {
   @Rule public Expect expect = Expect.create();
 
   private static ImmutableList<Class<?>> pair(Class<?> a, Class<?> b) {
@@ -77,7 +77,7 @@ public class MethodReferenceNodeTest {
     Class<?> mapClass = map.getClass();
     assertThat(Modifier.isPublic(mapClass.getModifiers())).isFalse();
     Method size = map.getClass().getMethod("size");
-    Method visibleSize = MethodReferenceNode.visibleMethod(size, mapClass);
+    Method visibleSize = ReferenceNode.visibleMethod(size, mapClass);
     assertThat(visibleSize.invoke(map)).isEqualTo(1);
   }
 

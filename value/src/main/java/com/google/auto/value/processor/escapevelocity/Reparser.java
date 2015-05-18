@@ -3,9 +3,8 @@ package com.google.auto.value.processor.escapevelocity;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.ForEachNode;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.IfNode;
 import com.google.auto.value.processor.escapevelocity.DirectiveNode.SetNode;
-import com.google.auto.value.processor.escapevelocity.Node.EmptyNode;
 import com.google.auto.value.processor.escapevelocity.Node.EofNode;
-import com.google.auto.value.processor.escapevelocity.TokenNode.CommentNode;
+import com.google.auto.value.processor.escapevelocity.TokenNode.CommentTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseIfTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.EndTokenNode;
@@ -20,6 +19,8 @@ import com.google.common.collect.Maps;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
+
+import static com.google.auto.value.processor.escapevelocity.Node.emptyNode;
 
 /**
  * The second phase of parsing. See {@link Parser#parse()} for a description of the phases and why
@@ -72,7 +73,7 @@ class Reparser {
     assert nodes.peekLast() instanceof EofNode;
     for (int i = 0; i < nodes.size(); i++) {
       Node nodeI = nodes.get(i);
-      if (nodeI instanceof CommentNode
+      if (nodeI instanceof CommentTokenNode
           || nodeI instanceof ReferenceNode
           || nodeI instanceof MacroDefinitionTokenNode
           || nodeI instanceof SetNode) {
@@ -100,7 +101,7 @@ class Reparser {
    */
   private Node parseTo(Set<Class<?>> stopSet, TokenNode forWhat) {
     int startLineNumber = (forWhat == null) ? 1 : forWhat.lineNumber;
-    Node node = new EmptyNode(startLineNumber);
+    Node node = emptyNode(startLineNumber);
     while (!stopSet.contains(currentNode.getClass())) {
       if (currentNode instanceof EofNode) {
         throw new ParseException(
@@ -130,8 +131,8 @@ class Reparser {
   private Node parseTokenNode() {
     TokenNode tokenNode = (TokenNode) currentNode;
     nextNode();
-    if (tokenNode instanceof CommentNode) {
-      return new EmptyNode(tokenNode.lineNumber);
+    if (tokenNode instanceof CommentTokenNode) {
+      return emptyNode(tokenNode.lineNumber);
     } else if (tokenNode instanceof IfTokenNode) {
       return parseIfOrElseIf((IfTokenNode) tokenNode);
     } else if (tokenNode instanceof ForEachTokenNode) {
@@ -158,7 +159,7 @@ class Reparser {
           macroDefinition.lineNumber, macroDefinition.name, macroDefinition.parameterNames, body);
       macros.put(macroDefinition.name, macro);
     }
-    return new EmptyNode(macroDefinition.lineNumber);
+    return emptyNode(macroDefinition.lineNumber);
   }
 
   private Node parseIfOrElseIf(IfOrElseIfTokenNode ifOrElseIf) {
@@ -167,7 +168,7 @@ class Reparser {
     Node token = currentNode;
     nextNode();  // Skip #else or #elseif (cond) or #end.
     if (token instanceof EndTokenNode) {
-      falsePart = new EmptyNode(token.lineNumber);
+      falsePart = emptyNode(token.lineNumber);
     } else if (token instanceof ElseTokenNode) {
       falsePart = parseTo(END_SET, ifOrElseIf);
       nextNode();  // Skip #end

@@ -151,6 +151,13 @@ public class TemplateTest {
   }
 
   @Test
+  public void substituteMethodNoSynthetic() {
+    // If we aren't careful, we'll see both the inherited `Set<K> keySet()` from Map
+    // and the overridden `ImmutableSet<K> keySet()` in ImmutableMap.
+    compare("$map.keySet()", ImmutableMap.of("map", (Object) ImmutableMap.of("foo", "bar")));
+  }
+
+  @Test
   public void substituteIndexNoBraces() {
     compare("<$map[\"x\"]>", ImmutableMap.of("map", (Object) ImmutableMap.of("x", "y")));
   }
@@ -158,6 +165,23 @@ public class TemplateTest {
   @Test
   public void substituteIndexWithBraces() {
     compare("<${map[\"x\"]}>", ImmutableMap.of("map", (Object) ImmutableMap.of("x", "y")));
+  }
+
+  @Test
+  public void substituteIndexThenProperty() {
+    compare("<$map[2].name>", ImmutableMap.of("map", (Object) ImmutableMap.of(2, getClass())));
+  }
+
+  public static class Indexable {
+    public String get(String y) {
+      return "[" + y + "]";
+    }
+  }
+
+  @Test
+  public void substituteExoticIndex() {
+    // Any class with a get(X) method can be used with $x[i]
+    compare("<$x[\"foo\"]>", ImmutableMap.of("x", (Object) new Indexable()));
   }
 
   @Test
@@ -210,6 +234,11 @@ public class TemplateTest {
   @Test
   public void ifBraces() {
     compare("x#{if}(false)a#{elseif}(false)b #{else}c#{end}z");
+  }
+
+  @Test
+  public void ifUndefined() {
+    compare("#if ($undefined) really? #else indeed #end");
   }
 
   @Test

@@ -37,7 +37,7 @@ abstract class DirectiveNode extends Node {
     }
 
     @Override Object evaluate(EvaluationContext context) {
-      Node branch = condition.isTrue(context) ? truePart : falsePart;
+      Node branch = condition.isDefinedAndTrue(context) ? truePart : falsePart;
       return branch.evaluate(context);
     }
   }

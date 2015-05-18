@@ -1,5 +1,7 @@
 package com.google.auto.value.processor.escapevelocity;
 
+import com.google.common.collect.ImmutableList;
+
 /**
  * A node in the parse tree.
  *
@@ -30,26 +32,25 @@ abstract class Node {
   }
 
   /**
-   * An empty node in the parse tree. This is used for example to represent the trivial "else"
-   * part of an {@code #if} that does not have an explicit {@code #else}.
+   * Returns an empty node in the parse tree. This is used for example to represent the trivial
+   * "else" part of an {@code #if} that does not have an explicit {@code #else}.
    */
-  static class EmptyNode extends Node {
-    EmptyNode(int lineNumber) {
-      super(lineNumber);
-    }
-
-    @Override Object evaluate(EvaluationContext context) {
-      return "";
-    }
+  static Node emptyNode(int lineNumber) {
+    return new Cons(lineNumber, ImmutableList.<Node>of());
   }
 
   /**
    * A synthetic node that represents the end of the input. This node is the last one in the
    * initial token string and also the last one in the parse tree.
    */
-  static final class EofNode extends EmptyNode {
+  static final class EofNode extends Node {
     EofNode(int lineNumber) {
       super(lineNumber);
+    }
+
+    @Override
+    Object evaluate(EvaluationContext context) {
+      return "";
     }
   }
 
@@ -59,27 +60,34 @@ abstract class Node {
    * result.
    */
   static Node cons(Node lhs, Node rhs) {
-    if (lhs instanceof EmptyNode) {
-      return rhs;
-    } else if (rhs instanceof EmptyNode) {
-      return lhs;
-    } else {
-      return new Cons(lhs, rhs);
+    ImmutableList.Builder<Node> nodes = ImmutableList.builder();
+    for (Node node : new Node[] {lhs, rhs}) {
+      // Special-casing cons-of-cons avoids deep recursion when we have many consecutive
+      // concatenated nodes. Building up a tree of two-by-two conses would otherwise imply
+      // recursion to the depth of the tree when evaluating it.
+      if (node instanceof Cons) {
+        nodes.addAll(((Cons) node).nodes);
+      } else {
+        nodes.add(node);
+      }
     }
+    return new Cons(lhs.lineNumber, nodes.build());
   }
 
   private static final class Cons extends Node {
-    private final Node lhs;
-    private final Node rhs;
+    private final ImmutableList<Node> nodes;
 
-    Cons(Node lhs, Node rhs) {
-      super(lhs.lineNumber);
-      this.lhs = lhs;
-      this.rhs = rhs;
+    Cons(int lineNumber, ImmutableList<Node> nodes) {
+      super(lineNumber);
+      this.nodes = nodes;
     }
 
     @Override Object evaluate(EvaluationContext context) {
-      return String.valueOf(lhs.evaluate(context)) + String.valueOf(rhs.evaluate(context));
+      StringBuilder sb = new StringBuilder();
+      for (Node node : nodes) {
+        sb.append(node.evaluate(context));
+      }
+      return sb.toString();
     }
   }
 }

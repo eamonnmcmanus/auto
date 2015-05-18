@@ -10,8 +10,9 @@ import com.google.auto.value.processor.escapevelocity.ExpressionNode.OrExpressio
 import com.google.auto.value.processor.escapevelocity.Node.EofNode;
 import com.google.auto.value.processor.escapevelocity.ReferenceNode.IndexReferenceNode;
 import com.google.auto.value.processor.escapevelocity.ReferenceNode.MemberReferenceNode;
+import com.google.auto.value.processor.escapevelocity.ReferenceNode.MethodReferenceNode;
 import com.google.auto.value.processor.escapevelocity.ReferenceNode.PlainReferenceNode;
-import com.google.auto.value.processor.escapevelocity.TokenNode.CommentNode;
+import com.google.auto.value.processor.escapevelocity.TokenNode.CommentTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseIfTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.ElseTokenNode;
 import com.google.auto.value.processor.escapevelocity.TokenNode.EndTokenNode;
@@ -346,12 +347,12 @@ class Parser {
    * Parses and discards a comment, which is {@code ##} followed by any number of characters up to
    * and including the next newline.
    */
-  private CommentNode parseComment() throws IOException {
+  private CommentTokenNode parseComment() throws IOException {
     while (c != '\n' && c != EOF) {
       next();
     }
     next();
-    return new CommentNode(lineNumber());
+    return new CommentTokenNode(lineNumber());
   }
 
   /**
@@ -513,7 +514,8 @@ class Parser {
       throw parseError("Expected ]");
     }
     next();
-    return new IndexReferenceNode(lhs, index);
+    ReferenceNode reference = new IndexReferenceNode(lhs, index);
+    return parseReferenceSuffix(reference);
   }
 
   /**
