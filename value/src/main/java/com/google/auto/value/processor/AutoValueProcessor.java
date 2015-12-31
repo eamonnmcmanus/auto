@@ -20,7 +20,7 @@ import static com.google.auto.common.MoreElements.getLocalAndInheritedMethods;
 import com.google.auto.common.MoreElements;
 import com.google.auto.service.AutoService;
 import com.google.auto.value.AutoValue;
-import com.google.auto.value.AutoValueExtension;
+import com.google.auto.value.extension.AutoValueExtension;
 import com.google.common.base.Functions;
 import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
@@ -29,44 +29,10 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import java.beans.Introspector;
-import java.io.IOException;
-import java.io.Serializable;
-import java.io.Writer;
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import javax.annotation.Generated;
-import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
-import javax.annotation.processing.RoundEnvironment;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.TypeParameterElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.ArrayType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.ElementFilter;
-import javax.lang.model.util.Types;
-import javax.tools.Diagnostic;
-import javax.tools.JavaFileObject;
 import java.beans.Introspector;
 import java.io.IOException;
 import java.io.Serializable;
@@ -81,6 +47,29 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 
+import javax.annotation.Generated;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.Processor;
+import javax.annotation.processing.RoundEnvironment;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.Name;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
+import javax.lang.model.util.Types;
+import javax.tools.Diagnostic;
+import javax.tools.JavaFileObject;
+
 /**
  * Javac annotation processor (compiler plugin) for value types; user code never references this
  * class.
@@ -94,7 +83,7 @@ public class AutoValueProcessor extends AbstractProcessor {
     this(ServiceLoader.load(AutoValueExtension.class, AutoValueProcessor.class.getClassLoader()));
   }
 
-  /* testing */ AutoValueProcessor(Iterable<AutoValueExtension> extensions) {
+  /* testing */ AutoValueProcessor(Iterable<? extends AutoValueExtension> extensions) {
     this.extensions = extensions;
   }
 
@@ -116,7 +105,7 @@ public class AutoValueProcessor extends AbstractProcessor {
    */
   private final List<String> deferredTypeNames = new ArrayList<String>();
 
-  private Iterable<AutoValueExtension> extensions;
+  private Iterable<? extends AutoValueExtension> extensions;
 
   @Override
   public synchronized void init(ProcessingEnvironment processingEnv) {
@@ -198,7 +187,6 @@ public class AutoValueProcessor extends AbstractProcessor {
     private final ExecutableElement method;
     private final String type;
     private final ImmutableList<String> annotations;
-    private final String nullableAnnotation;
 
     Property(
         String name,
@@ -211,18 +199,6 @@ public class AutoValueProcessor extends AbstractProcessor {
       this.method = method;
       this.type = type;
       this.annotations = buildAnnotations(typeSimplifier);
-      this.nullableAnnotation = buildNullableAnnotation(typeSimplifier);
-    }
-
-    private String buildNullableAnnotation(TypeSimplifier typeSimplifier) {
-      for (AnnotationMirror annotationMirror : method.getAnnotationMirrors()) {
-        String name = annotationMirror.getAnnotationType().asElement().getSimpleName().toString();
-        if (name.equals("Nullable")) {
-          AnnotationOutput annotationOutput = new AnnotationOutput(typeSimplifier);
-          return annotationOutput.sourceFormForAnnotation(annotationMirror);
-        }
-      }
-      return null;
     }
 
     private ImmutableList<String> buildAnnotations(TypeSimplifier typeSimplifier) {
@@ -379,21 +355,42 @@ public class AutoValueProcessor extends AbstractProcessor {
       errorReporter.abortWithError("@AutoValue may not be used to implement an annotation"
           + " interface; try using @AutoAnnotation instead", type);
     }
+    checkTopLevelOrStatic(type);
 
     ImmutableSet<ExecutableElement> methods =
         getLocalAndInheritedMethods(type, processingEnv.getElementUtils());
     ImmutableSet<ExecutableElement> methodsToImplement = methodsToImplement(type, methods);
+    ImmutableBiMap<String, ExecutableElement> properties =
+        propertyNameToMethodMap(methodsToImplement);
 
     String fqExtClass = TypeSimplifier.classNameOf(type);
     List<AutoValueExtension> appliedExtensions = new ArrayList<AutoValueExtension>();
-    AutoValueExtension.Context context = makeExtensionContext(type, methodsToImplement);
+    ExtensionContext context = new ExtensionContext(processingEnv, type, properties);
     for (AutoValueExtension extension : extensions) {
       if (extension.applicable(context)) {
-        if (extension.mustBeAtEnd(context)) {
+        if (extension.mustBeFinal(context)) {
           appliedExtensions.add(0, extension);
         } else {
           appliedExtensions.add(extension);
         }
+      }
+    }
+
+    if (!appliedExtensions.isEmpty()) {
+      final Set<String> methodsToRemove = Sets.newHashSet();
+      for (int i = appliedExtensions.size() - 1; i >= 0; i--) {
+        AutoValueExtension extension = appliedExtensions.get(i);
+        methodsToRemove.addAll(extension.consumeProperties(context));
+      }
+      if (!methodsToRemove.isEmpty()) {
+        context.setProperties(newImmutableBiMapRemovingKeys(properties, methodsToRemove));
+        Set<ExecutableElement> newMethods = Sets.newLinkedHashSet(methods);
+        for (Iterator<ExecutableElement> it = newMethods.iterator(); it.hasNext(); ) {
+          if (methodsToRemove.contains(it.next().getSimpleName().toString())) {
+            it.remove();
+          }
+        }
+        methods = ImmutableSet.copyOf(newMethods);
       }
     }
 
@@ -434,37 +431,31 @@ public class AutoValueProcessor extends AbstractProcessor {
     }
   }
 
-  private AutoValueExtension.Context makeExtensionContext(
-      final TypeElement type, final Iterable<ExecutableElement> methods) {
-    return new AutoValueExtension.Context() {
-
-      @Override public ProcessingEnvironment processingEnvironment() {
-        return processingEnv;
+  private static <K, V> ImmutableBiMap<K, V> newImmutableBiMapRemovingKeys(ImmutableBiMap<K, V> original,
+      Set<K> keysToRemove) {
+    ImmutableBiMap.Builder<K, V> builder = ImmutableBiMap.builder();
+    for (Map.Entry<K, V> property : original.entrySet()) {
+      if (!keysToRemove.contains(property.getKey())) {
+        builder.put(property);
       }
-
-      @Override public String packageName() {
-        return TypeSimplifier.packageNameOf(type);
-      }
-
-      @Override public TypeElement autoValueClass() {
-        return type;
-      }
-
-      @Override public Map<String, ExecutableElement> properties() {
-        return propertyNameToMethodMap(methods);
-      }
-    };
+    }
+    return builder.build();
   }
 
-  private void defineVarsForType(TypeElement type, AutoValueTemplateVars vars,
-                                 Set<ExecutableElement> methods) {
+  private void defineVarsForType(
+      TypeElement type,
+      AutoValueTemplateVars vars,
+      Set<ExecutableElement> methods) {
     Types typeUtils = processingEnv.getTypeUtils();
     determineObjectMethodsToGenerate(methods, vars);
     ImmutableSet<ExecutableElement> methodsToImplement = methodsToImplement(type, methods);
     Set<TypeMirror> types = new TypeMirrorSet();
     types.addAll(returnTypesOf(methodsToImplement));
-    TypeMirror javaxAnnotationGenerated = getTypeMirror(Generated.class);
-    types.add(javaxAnnotationGenerated);
+    TypeElement generatedTypeElement =
+        processingEnv.getElementUtils().getTypeElement(Generated.class.getName());
+    if (generatedTypeElement != null) {
+      types.add(generatedTypeElement.asType());
+    }
     TypeMirror javaUtilArrays = getTypeMirror(Arrays.class);
     if (containsArrayType(types)) {
       // If there are array properties then we will be referencing java.util.Arrays.
@@ -487,12 +478,13 @@ public class AutoValueProcessor extends AbstractProcessor {
     String pkg = TypeSimplifier.packageNameOf(type);
     TypeSimplifier typeSimplifier = new TypeSimplifier(typeUtils, pkg, types, type.asType());
     vars.imports = typeSimplifier.typesToImport();
-    vars.generated = typeSimplifier.simplify(javaxAnnotationGenerated);
+    vars.generated = generatedTypeElement == null
+        ? ""
+        : typeSimplifier.simplify(generatedTypeElement.asType());
     vars.arrays = typeSimplifier.simplify(javaUtilArrays);
     ImmutableBiMap<ExecutableElement, String> methodToPropertyName =
-        methodToPropertyNameMap(propertyMethods);
-    Map<ExecutableElement, String> methodToIdentifier =
-        Maps.newLinkedHashMap(methodToPropertyName);
+        propertyNameToMethodMap(propertyMethods).inverse();
+    Map<ExecutableElement, String> methodToIdentifier = Maps.newLinkedHashMap(methodToPropertyName);
     fixReservedIdentifiers(methodToIdentifier);
     List<Property> props = new ArrayList<Property>();
     for (ExecutableElement method : propertyMethods) {
@@ -514,32 +506,18 @@ public class AutoValueProcessor extends AbstractProcessor {
     }
   }
 
-  private ImmutableBiMap<ExecutableElement, String> methodToPropertyNameMap(
-      Iterable<ExecutableElement> propertyMethods) {
-    ImmutableMap.Builder<ExecutableElement, String> builder = ImmutableMap.builder();
-    boolean allGetters = allGetters(propertyMethods);
-    for (ExecutableElement method : propertyMethods) {
-      String methodName = method.getSimpleName().toString();
-      String name = allGetters ? nameWithoutPrefix(methodName) : methodName;
-      builder.put(method, name);
-    }
-    ImmutableMap<ExecutableElement, String> map = builder.build();
-    if (allGetters) {
-      checkDuplicateGetters(map);
-    }
-    return ImmutableBiMap.copyOf(map);
-  }
-
   private ImmutableBiMap<String, ExecutableElement> propertyNameToMethodMap(
       Iterable<ExecutableElement> propertyMethods) {
-    ImmutableMap.Builder<String, ExecutableElement> builder = ImmutableMap.builder();
+    Map<String, ExecutableElement> map = Maps.newLinkedHashMap();
     boolean allGetters = allGetters(propertyMethods);
     for (ExecutableElement method : propertyMethods) {
       String methodName = method.getSimpleName().toString();
       String name = allGetters ? nameWithoutPrefix(methodName) : methodName;
-      builder.put(name, method);
+      Object old = map.put(name, method);
+      if (old != null) {
+        errorReporter.reportError("More than one @AutoValue property called " + name, method);
+      }
     }
-    ImmutableMap<String, ExecutableElement> map = builder.build();
     return ImmutableBiMap.copyOf(map);
   }
 
@@ -577,14 +555,15 @@ public class AutoValueProcessor extends AbstractProcessor {
     return Introspector.decapitalize(name);
   }
 
-  private void checkDuplicateGetters(Map<ExecutableElement, String> methodToIdentifier) {
-    Set<String> seen = Sets.newHashSet();
-    for (Map.Entry<ExecutableElement, String> entry : methodToIdentifier.entrySet()) {
-      if (!seen.add(entry.getValue())) {
-        errorReporter.reportError(
-            "More than one @AutoValue property called " + entry.getValue(), entry.getKey());
-      }
+  private void checkTopLevelOrStatic(TypeElement type) {
+    ElementKind enclosingKind = type.getEnclosingElement().getKind();
+    if ((enclosingKind.isClass() || enclosingKind.isInterface())
+        && !type.getModifiers().contains(Modifier.STATIC)) {
+      errorReporter.abortWithError("Nested @AutoValue class must be static", type);
     }
+    // In principle type.getEnclosingElement() could be an ExecutableElement (for a class
+    // declared inside a method), but since RoundEnvironment.getElementsAnnotatedWith doesn't
+    // return such classes we won't see them here.
   }
 
   // If we have a getter called getPackage() then we can't use the identifier "package" to represent
@@ -657,13 +636,18 @@ public class AutoValueProcessor extends AbstractProcessor {
   private ImmutableSet<ExecutableElement> methodsToImplement(
       TypeElement autoValueClass, Set<ExecutableElement> methods) {
     ImmutableSet.Builder<ExecutableElement> toImplement = ImmutableSet.builder();
+    Set<Name> toImplementNames = Sets.newHashSet();
     boolean ok = true;
     for (ExecutableElement method : methods) {
       if (method.getModifiers().contains(Modifier.ABSTRACT)
           && objectMethodToOverride(method) == ObjectMethodToOverride.NONE) {
         if (method.getParameters().isEmpty() && method.getReturnType().getKind() != TypeKind.VOID) {
           ok &= checkReturnType(autoValueClass, method);
-          toImplement.add(method);
+          if (toImplementNames.add(method.getSimpleName())) {
+            // If an abstract method with the same signature is inherited on more than one path,
+            // we only add it once.
+            toImplement.add(method);
+          }
         } else {
           // This could reasonably be an error, were it not for an Eclipse bug in
           // ElementUtils.override that sometimes fails to recognize that one method overrides
@@ -753,7 +737,7 @@ public class AutoValueProcessor extends AbstractProcessor {
       }
       Types typeUtils = processingEnv.getTypeUtils();
       TypeElement parentElement = (TypeElement) typeUtils.asElement(parentMirror);
-      if (parentElement.getAnnotation(AutoValue.class) != null) {
+      if (MoreElements.isAnnotationPresent(parentElement, AutoValue.class)) {
         return true;
       }
       type = parentElement;
