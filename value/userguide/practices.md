@@ -1,6 +1,5 @@
 # Best practices
 
-[TOC]
 
 ## <a name="interchangeable"></a>"Equals means interchangeable"
 
