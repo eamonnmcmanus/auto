@@ -12,9 +12,8 @@
 >
 > -- *Joshua Bloch, author, Effective Java*
 
-<!-- TODO: table of contents that works both internal/external -->
 
-## Background {#background}
+## Background<a name="background"></a>
 
 **Value classes** are extremely common in Java projects. These are classes for
 which you want to treat any two instances with suitably equal field values as
