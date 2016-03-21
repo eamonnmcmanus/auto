@@ -73,7 +73,7 @@ Be sure to put the static `builder()` method directly in your value class (e.g.,
 `Animal` class is always initialized before `Builder`. Otherwise you may be
 exposing yourself to initialization-order problems.
 
-## How do I...<a name="howto"></a>
+## <a name="howto"></a>How do I...
 
 *   ... [use (or not use) `set` **prefixes**?](builders-howto.md#beans)
 *   ... [use different **names** besides `builder()`/`Builder`/`build()`?]
