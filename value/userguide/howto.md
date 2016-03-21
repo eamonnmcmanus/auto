@@ -58,7 +58,7 @@ class Outer {
       ...
 ```
 
-## ... use (or not use) JavaBeans-style name prefixes?<a name="beans"></a>
+## <a name="beans"></a>... use (or not use) JavaBeans-style name prefixes?
 
 Some developers prefer to name their accessors with a `get-` or `is-` prefix,
 but would prefer that only the "bare" property name be used in `toString` and
