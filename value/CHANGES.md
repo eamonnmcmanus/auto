@@ -1,6 +1,6 @@
 # Auto-Value Changes
 
-## 1.1 -> 1.2
+## 1.1 → 1.2
 
 ### Functional changes
 
@@ -18,8 +18,8 @@
     
     ```
       ...
-      void setStrings(ImmutableList<Strings>)
-      ImmutableList.Builder<Strings> stringsBuilder()
+      abstract void setStrings(ImmutableList<Strings>);
+      abstract ImmutableList.Builder<Strings> stringsBuilder();
       ...
     ```
     At runtime, if `stringsBuilder()...` is called then it is an error to call
@@ -55,5 +55,5 @@
   * Properties marked `@Nullable` now get `@Nullable` on the corresponding
     constructor parameters in the generated class.
 
-[AutoValueExtension]: value/src/main/java/com/google/auto/value/extension/AutoValueExtension.java
+[AutoValueExtension]: src/main/java/com/google/auto/value/extension/AutoValueExtension.java
 
