@@ -2,7 +2,7 @@
 
 ## Functional changes
 
-* A **provisional** extension API has been introduced. This **will change** in a later release. If you want to use it regardless, see the [AutoValueExtension](java/com/google/auto/value/extension/AutoValueExtension.java) class.
+* A **provisional** extension API has been introduced. This **will change** in a later release. If you want to use it regardless, see the [AutoValueExtension](src/main/java/com/google/auto/value/extension/AutoValueExtension.java) class.
 
 * Properties of primitive array type (e.g. `byte[]`) are no longer cloned when read. If your @AutoValue class includes an array property, by default it will get a compiler warning, which can be suppressed with `@SuppressWarnings("mutable")`.
 
