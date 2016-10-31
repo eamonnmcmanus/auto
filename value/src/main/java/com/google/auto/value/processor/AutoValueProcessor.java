@@ -747,7 +747,7 @@ public class AutoValueProcessor extends AbstractProcessor {
       types.addAll(builder.get().referencedTypes());
     }
     TypeElement generatedTypeElement =
-        processingEnv.getElementUtils().getTypeElement(Generated.class.getName());
+        processingEnv.getElementUtils().getTypeElement("javax.annotation.Generated");
     if (generatedTypeElement != null) {
       types.add(generatedTypeElement.asType());
     }
