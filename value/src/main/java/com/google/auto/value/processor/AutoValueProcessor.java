@@ -104,13 +104,17 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
 
     if (extensions == null) {
       try {
-        ServiceLoader<AutoValueExtension> serviceLoader =
-            ServiceLoader.load(AutoValueExtension.class, loaderForExtensions);
-        extensions = ImmutableList.copyOf(
-            Iterables.filter(
-                serviceLoader, ext -> !ext.getClass().getName().equals(OLD_MEMOIZE_EXTENSION)));
-        // ServiceLoader.load returns a lazily-evaluated Iterable, so evaluate it eagerly now
-        // to discover any exceptions.
+        if (false) {
+          ServiceLoader<AutoValueExtension> serviceLoader =
+              ServiceLoader.load(AutoValueExtension.class, loaderForExtensions);
+          extensions = ImmutableList.copyOf(
+              Iterables.filter(
+                  serviceLoader, ext -> !ext.getClass().getName().equals(OLD_MEMOIZE_EXTENSION)));
+          // ServiceLoader.load returns a lazily-evaluated Iterable, so evaluate it eagerly now
+          // to discover any exceptions.
+        } else {
+          extensions = SimpleServiceLoader.load(AutoValueExtension.class, loaderForExtensions);
+        }
       } catch (Throwable t) {
         StringBuilder warning = new StringBuilder();
         warning.append(
