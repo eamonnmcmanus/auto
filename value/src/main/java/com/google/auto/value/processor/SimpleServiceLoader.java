@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
@@ -33,33 +34,37 @@ class SimpleServiceLoader {
   private static <T> ImmutableList<T> providersFromUrl(
       URL resourceUrl, Class<T> service, ClassLoader loader) {
     ImmutableList.Builder<T> providers = ImmutableList.builder();
-    try (InputStream in = resourceUrl.openStream();
-        BufferedReader reader =
-            new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-      String line;
-      while ((line = reader.readLine()) != null) {
-        Optional<String> maybeClassName = parseClassName(line);
-        if (maybeClassName.isPresent()) {
-          String className = maybeClassName.get();
-          Class<?> c;
-          try {
-            c = Class.forName(className, false, loader);
-          } catch (ClassNotFoundException e) {
-            throw new ServiceConfigurationError("Could not load " + className, e);
-          }
-          if (!service.isAssignableFrom(c)) {
-            throw new ServiceConfigurationError(
-                "Class " + className + " is not assignable to " + service.getName());
-          }
-          try {
-            Object provider = c.getConstructor().newInstance();
-            providers.add(service.cast(provider));
-          } catch (ReflectiveOperationException e) {
-            throw new ServiceConfigurationError("Could not construct " + className, e);
+    try {
+      URLConnection connection = resourceUrl.openConnection();
+      connection.setUseCaches(false);
+      try (InputStream in = connection.getInputStream();
+          BufferedReader reader =
+              new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+        String line;
+        while ((line = reader.readLine()) != null) {
+          Optional<String> maybeClassName = parseClassName(line);
+          if (maybeClassName.isPresent()) {
+            String className = maybeClassName.get();
+            Class<?> c;
+            try {
+              c = Class.forName(className, false, loader);
+            } catch (ClassNotFoundException e) {
+              throw new ServiceConfigurationError("Could not load " + className, e);
+            }
+            if (!service.isAssignableFrom(c)) {
+              throw new ServiceConfigurationError(
+                  "Class " + className + " is not assignable to " + service.getName());
+            }
+            try {
+              Object provider = c.getConstructor().newInstance();
+              providers.add(service.cast(provider));
+            } catch (ReflectiveOperationException e) {
+              throw new ServiceConfigurationError("Could not construct " + className, e);
+            }
           }
         }
+        return providers.build();
       }
-      return providers.build();
     } catch (IOException e) {
       throw new ServiceConfigurationError("Could not read " + resourceUrl, e);
     }
