@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Google, Inc.
+ * Copyright 2016 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.fail;
 
 import com.google.auto.value.AutoValue;
+import com.google.auto.value.AutoValue.CopyAnnotations;
 import com.google.auto.value.extension.memoized.MemoizedTest.HashCodeEqualsOptimization.EqualsCounter;
 import com.google.common.collect.ImmutableList;
 import java.lang.reflect.AnnotatedType;
@@ -49,6 +50,29 @@ public class MemoizedTest {
     @Memoized
     boolean getMemoizedNative0() {
       return getNative0();
+    }
+  }
+
+  @AutoValue
+  @CopyAnnotations
+  @javax.annotation.Nullable
+  abstract static class ValueWithCopyAnnotations {
+    abstract boolean getNative();
+
+    @Memoized
+    boolean getMemoizedNative() {
+      return getNative();
+    }
+  }
+
+  @AutoValue
+  @javax.annotation.Nullable
+  abstract static class ValueWithoutCopyAnnotations {
+    abstract boolean getNative();
+
+    @Memoized
+    boolean getMemoizedNative() {
+      return getNative();
     }
   }
 
@@ -235,14 +259,14 @@ public class MemoizedTest {
   @Test
   public void notNullable() {
     assertThat(value.notNullable()).isEqualTo("derived string 1");
-    assertThat(value.notNullable()).isSameAs(value.notNullable());
+    assertThat(value.notNullable()).isSameInstanceAs(value.notNullable());
     assertThat(value.notNullableCount).isEqualTo(1);
   }
 
   @Test
   public void nullable() {
     assertThat(value.nullable()).isEqualTo("nullable derived string 1");
-    assertThat(value.nullable()).isSameAs(value.nullable());
+    assertThat(value.nullable()).isSameInstanceAs(value.nullable());
     assertThat(value.nullableCount).isEqualTo(1);
   }
 
@@ -250,7 +274,8 @@ public class MemoizedTest {
   public void nullableWithTypeAnnotation() {
     assertThat(value.nullableWithTypeAnnotation())
         .isEqualTo("nullable derived stringWithTypeAnnotation 1");
-    assertThat(value.nullableWithTypeAnnotation()).isSameAs(value.nullableWithTypeAnnotation());
+    assertThat(value.nullableWithTypeAnnotation())
+        .isSameInstanceAs(value.nullableWithTypeAnnotation());
     assertThat(value.nullableWithTypeAnnotationCount).isEqualTo(1);
   }
 
@@ -293,7 +318,7 @@ public class MemoizedTest {
         value.throwsException();
         fail();
       } catch (SomeCheckedException expected2) {
-        assertThat(expected2).isNotSameAs(expected1);
+        assertThat(expected2).isNotSameInstanceAs(expected1);
       }
     }
     assertThat(value.throwsExceptionCount).isEqualTo(2);
@@ -318,6 +343,25 @@ public class MemoizedTest {
     assertThat(value.getMemoizedNative()).isTrue();
     assertThat(value.getNative0()).isFalse();
     assertThat(value.getMemoizedNative0()).isFalse();
+  }
+
+  @Test
+  public void copyAnnotations() {
+    ValueWithCopyAnnotations valueWithCopyAnnotations =
+        new AutoValue_MemoizedTest_ValueWithCopyAnnotations(true);
+    ValueWithoutCopyAnnotations valueWithoutCopyAnnotations =
+        new AutoValue_MemoizedTest_ValueWithoutCopyAnnotations(true);
+
+    assertThat(
+            valueWithCopyAnnotations
+                .getClass()
+                .isAnnotationPresent(javax.annotation.Nullable.class))
+        .isTrue();
+    assertThat(
+            valueWithoutCopyAnnotations
+                .getClass()
+                .isAnnotationPresent(javax.annotation.Nullable.class))
+        .isFalse();
   }
 
   @Test
@@ -407,5 +451,35 @@ public class MemoizedTest {
     memoizedHashCodeAndFinalEqualsMethod.hashCode();
     memoizedHashCodeAndFinalEqualsMethod.hashCode();
     assertThat(memoizedHashCodeAndFinalEqualsMethod.hashCodeCount).isEqualTo(1);
+  }
+
+  interface TypeEdgeIterable<InputT, ResultT> {}
+
+  interface ResourceUri {}
+
+  interface TypePath<InputT, ResultT> {}
+
+  abstract static class AbstractTypePath<InputT, ResultT> {
+    abstract TypeEdgeIterable<InputT, ResultT> edges();
+  }
+
+  @AutoValue
+  abstract static class ResourceUriPath<InputT> extends AbstractTypePath<InputT, ResourceUri> {
+    static <InputT> ResourceUriPath<InputT> create(
+        TypeEdgeIterable<InputT, ResourceUri> edges) {
+      return new AutoValue_MemoizedTest_ResourceUriPath<>(edges);
+    }
+
+    @Memoized
+    TypePath<InputT, String> toServiceName() {
+      return new TypePath<InputT, String>() {};
+    }
+  }
+
+  @Test
+  public void methodTypeFromTypeVariableSubsitution() {
+    ResourceUriPath<String> path =
+        ResourceUriPath.create(new TypeEdgeIterable<String, ResourceUri>() {});
+    assertThat(path.edges()).isNotNull();
   }
 }

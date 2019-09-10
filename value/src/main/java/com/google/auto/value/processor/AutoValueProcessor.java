@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Google, Inc.
+ * Copyright 2012 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,11 @@ import com.google.auto.service.AutoService;
 import com.google.auto.value.extension.AutoValueExtension;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import java.lang.annotation.Annotation;
@@ -39,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.ServiceConfigurationError;
-import java.util.ServiceLoader;
 import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
@@ -103,13 +104,10 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
 
     if (extensions == null) {
       try {
-        ServiceLoader<AutoValueExtension> serviceLoader =
-            ServiceLoader.load(AutoValueExtension.class, loaderForExtensions);
         extensions = ImmutableList.copyOf(
             Iterables.filter(
-                serviceLoader, ext -> !ext.getClass().getName().equals(OLD_MEMOIZE_EXTENSION)));
-        // ServiceLoader.load returns a lazily-evaluated Iterable, so evaluate it eagerly now
-        // to discover any exceptions.
+                SimpleServiceLoader.load(AutoValueExtension.class, loaderForExtensions),
+                ext -> !ext.getClass().getName().equals(OLD_MEMOIZE_EXTENSION)));
       } catch (Throwable t) {
         StringBuilder warning = new StringBuilder();
         warning.append(
@@ -118,7 +116,7 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
         if (t instanceof ServiceConfigurationError) {
           warning.append(" This may be due to a corrupt jar file in the compiler's classpath.");
         }
-        warning.append(" Exception: ").append(t);
+        warning.append("\n").append(Throwables.getStackTraceAsString(t));
         errorReporter().reportWarning(warning.toString(), null);
         extensions = ImmutableList.of();
       }
@@ -214,12 +212,13 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
       toBuilderMethods = ImmutableSet.of();
     }
 
-    ImmutableSet<ExecutableElement> propertyMethods =
-        propertyMethodsIn(immutableSetDifference(abstractMethods, toBuilderMethods));
-    ImmutableBiMap<String, ExecutableElement> properties = propertyNameToMethodMap(propertyMethods);
+    ImmutableMap<ExecutableElement, TypeMirror> propertyMethodsAndTypes =
+        propertyMethodsIn(immutableSetDifference(abstractMethods, toBuilderMethods), type);
+    ImmutableMap<String, ExecutableElement> properties =
+        propertyNameToMethodMap(propertyMethodsAndTypes.keySet());
 
-    ExtensionContext context =
-        new ExtensionContext(processingEnv, type, properties, abstractMethods);
+    ExtensionContext context = new ExtensionContext(
+        processingEnv, type, properties, propertyMethodsAndTypes, abstractMethods);
     ImmutableList<AutoValueExtension> applicableExtensions = applicableExtensions(type, context);
     ImmutableSet<ExecutableElement> consumedMethods =
         methodsConsumedByExtensions(
@@ -229,12 +228,14 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
       ImmutableSet<ExecutableElement> allAbstractMethods = abstractMethods;
       abstractMethods = immutableSetDifference(abstractMethods, consumedMethods);
       toBuilderMethods = immutableSetDifference(toBuilderMethods, consumedMethods);
-      propertyMethods =
-          propertyMethodsIn(immutableSetDifference(abstractMethods, toBuilderMethods));
-      properties = propertyNameToMethodMap(propertyMethods);
-      context = new ExtensionContext(processingEnv, type, properties, allAbstractMethods);
+      propertyMethodsAndTypes =
+          propertyMethodsIn(immutableSetDifference(abstractMethods, toBuilderMethods), type);
+      properties = propertyNameToMethodMap(propertyMethodsAndTypes.keySet());
+      context = new ExtensionContext(
+          processingEnv, type, properties, propertyMethodsAndTypes, allAbstractMethods);
     }
 
+    ImmutableSet<ExecutableElement> propertyMethods = propertyMethodsAndTypes.keySet();
     boolean extensionsPresent = !applicableExtensions.isEmpty();
     validateMethods(type, abstractMethods, toBuilderMethods, propertyMethods, extensionsPresent);
 
@@ -244,7 +245,7 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
     vars.types = processingEnv.getTypeUtils();
     vars.identifiers = !processingEnv.getOptions().containsKey(OMIT_IDENTIFIERS_OPTION);
     defineSharedVarsForType(type, methods, vars);
-    defineVarsForType(type, vars, toBuilderMethods, propertyMethods, builder);
+    defineVarsForType(type, vars, toBuilderMethods, propertyMethodsAndTypes, builder);
 
     GwtCompatibility gwtCompatibility = new GwtCompatibility(type);
     vars.gwtCompatibleAnnotation = gwtCompatibility.gwtCompatibleAnnotationString();
@@ -332,7 +333,7 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
       ImmutableList<AutoValueExtension> applicableExtensions,
       ExtensionContext context,
       ImmutableSet<ExecutableElement> abstractMethods,
-      ImmutableBiMap<String, ExecutableElement> properties) {
+      ImmutableMap<String, ExecutableElement> properties) {
     Set<ExecutableElement> consumed = new HashSet<>();
     for (AutoValueExtension extension : applicableExtensions) {
       Set<ExecutableElement> consumedHere = new HashSet<>();
@@ -410,8 +411,9 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
       TypeElement type,
       AutoValueTemplateVars vars,
       ImmutableSet<ExecutableElement> toBuilderMethods,
-      ImmutableSet<ExecutableElement> propertyMethods,
+      ImmutableMap<ExecutableElement, TypeMirror> propertyMethodsAndTypes,
       Optional<BuilderSpec.Builder> builder) {
+    ImmutableSet<ExecutableElement> propertyMethods = propertyMethodsAndTypes.keySet();
     // We can't use ImmutableList.toImmutableList() for obscure Google-internal reasons.
     vars.toBuilderMethods =
         ImmutableList.copyOf(toBuilderMethods.stream().map(SimpleMethod::new).collect(toList()));
@@ -420,7 +422,7 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
     ImmutableListMultimap<ExecutableElement, AnnotationMirror> annotatedPropertyMethods =
         propertyMethodAnnotationMap(type, propertyMethods);
     vars.props =
-        propertySet(type, propertyMethods, annotatedPropertyFields, annotatedPropertyMethods);
+        propertySet(propertyMethodsAndTypes, annotatedPropertyFields, annotatedPropertyMethods);
     vars.serialVersionUID = getSerialVersionUID(type);
     // Check for @AutoValue.Builder and add appropriate variables if it is present.
     if (builder.isPresent()) {

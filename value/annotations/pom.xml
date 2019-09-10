@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Copyright (C) 2012 Google, Inc.
+  Copyright 2012 Google LLC
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@
   <description>
     Immutable value-type code generation for Java 1.6+.
   </description>
+  <url>https://github.com/google/auto/tree/master/value</url>
 
   <properties>
     <java.version>1.7</java.version>

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Copyright (C) 2015 Google, Inc.
+  Copyright 2015 Google LLC
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -23,7 +23,9 @@
     <groupId>com.google.auto.value</groupId>
     <artifactId>auto-value-parent</artifactId>
     <version>HEAD-SNAPSHOT</version>
+    <relativePath>../../../pom.xml</relativePath>
   </parent>
+  <url>https://github.com/google/auto/tree/master/value</url>
 
   <groupId>com.google.auto.value.it.gwtserializer</groupId>
   <artifactId>gwtserializer</artifactId>

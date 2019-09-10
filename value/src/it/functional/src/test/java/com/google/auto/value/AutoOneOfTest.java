@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Google, Inc.
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,10 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.junit.Assert.fail;
 
 import com.google.common.testing.EqualsTester;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -110,7 +114,7 @@ public class AutoOneOfTest {
   public void getCorrectType() {
     Dog marvin = Dog.create("Marvin");
     Pet petMarvin = Pet.dog(marvin);
-    assertThat(petMarvin.dog()).isSameAs(marvin);
+    assertThat(petMarvin.dog()).isSameInstanceAs(marvin);
   }
 
   @Test
@@ -466,6 +470,40 @@ public class AutoOneOfTest {
     assertThat(pkg.toString()).isEqualTo("LetterOrPackage{package=pacquet}");
   }
 
+  @AutoOneOf(ArrayValue.Kind.class)
+  public abstract static class ArrayValue {
+    public enum Kind {
+      STRING,
+      INTS
+    }
+
+    public abstract Kind getKind();
+
+    public abstract String string();
+
+    @SuppressWarnings("mutable")
+    public abstract int[] ints();
+
+    public static ArrayValue ofString(String string) {
+      return AutoOneOf_AutoOneOfTest_ArrayValue.string(string);
+    }
+
+    public static ArrayValue ofInts(int[] ints) {
+      return AutoOneOf_AutoOneOfTest_ArrayValue.ints(ints);
+    }
+  }
+
+  @Test
+  public void arrayValues() {
+    ArrayValue string = ArrayValue.ofString("foo");
+    ArrayValue ints1 = ArrayValue.ofInts(new int[] {17, 23});
+    ArrayValue ints2 = ArrayValue.ofInts(new int[] {17, 23});
+    new EqualsTester()
+        .addEqualityGroup(string)
+        .addEqualityGroup(ints1, ints2)
+        .testEquals();
+  }
+
   @Retention(RetentionPolicy.RUNTIME)
   public @interface CopyTest {
     int value();
@@ -517,5 +555,84 @@ public class AutoOneOfTest {
     AnnotationCopied ace = AnnotationCopied.ace("ace");
     assertThat(ace.getClass().isAnnotationPresent(CopyTest.class)).isTrue();
     assertThat(ace.getClass().getAnnotation(CopyTest.class).value()).isEqualTo(23);
+  }
+
+  @AutoOneOf(MaybeEmpty.Kind.class)
+  public abstract static class MaybeEmpty implements Serializable {
+    public enum Kind {
+      EMPTY, STRING,
+    }
+
+    public abstract Kind getKind();
+
+    public abstract void empty();
+
+    public abstract String string();
+
+    public static MaybeEmpty ofEmpty() {
+      return AutoOneOf_AutoOneOfTest_MaybeEmpty.empty();
+    }
+
+    public static MaybeEmpty ofString(String s) {
+      return AutoOneOf_AutoOneOfTest_MaybeEmpty.string(s);
+    }
+  }
+
+  @Test
+  public void voidPropertyIsSingleton() {
+    MaybeEmpty empty1 = MaybeEmpty.ofEmpty();
+    MaybeEmpty empty2 = MaybeEmpty.ofEmpty();
+    assertThat(empty1).isSameInstanceAs(empty2);
+  }
+
+  @Test
+  public void voidPropertyRemainsSingletonWhenDeserialized() throws Exception {
+    MaybeEmpty empty1 = MaybeEmpty.ofEmpty();
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    // We're still compiling this with -source 6, so we can't use try-with-resources.
+    ObjectOutputStream dos = new ObjectOutputStream(baos);
+    dos.writeObject(empty1);
+    dos.close();
+    ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
+    ObjectInputStream ois = new ObjectInputStream(bais);
+    MaybeEmpty empty2 = (MaybeEmpty) ois.readObject();
+    assertThat(empty2).isSameInstanceAs(empty1);
+  }
+
+  @Test
+  public void voidPropertyToString() {
+    MaybeEmpty empty = MaybeEmpty.ofEmpty();
+    assertThat(empty.toString()).isEqualTo("MaybeEmpty{empty}");
+  }
+
+  @Test
+  public void voidPropertyHashCodeIsIdentity() {
+    MaybeEmpty empty = MaybeEmpty.ofEmpty();
+    assertThat(empty.hashCode()).isEqualTo(System.identityHashCode(empty));
+  }
+
+  @Test
+  public void voidPropertyGetterDoesNothing() {
+    MaybeEmpty empty = MaybeEmpty.ofEmpty();
+    empty.empty();
+  }
+
+  @Test
+  public void voidPropertyNotEqualToNonVoid() {
+    MaybeEmpty empty = MaybeEmpty.ofEmpty();
+    MaybeEmpty notEmpty = MaybeEmpty.ofString("foo");
+    assertThat(empty).isNotEqualTo(notEmpty);
+    assertThat(notEmpty).isNotEqualTo(empty);
+  }
+
+  @Test
+  public void voidPropertyWrongType() {
+    MaybeEmpty notEmpty = MaybeEmpty.ofString("foo");
+    try {
+      notEmpty.empty();
+      fail();
+    } catch (UnsupportedOperationException e) {
+      assertThat(e).hasMessageThat().containsMatch("(?i:string)");
+    }
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Google Inc.
+ * Copyright 2012 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ import com.google.common.collect.ComparisonChain;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.ImmutableTable;
 import com.google.common.testing.EqualsTester;
 import com.google.common.testing.SerializableTester;
@@ -43,6 +45,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
 import java.math.BigInteger;
 import java.util.AbstractList;
 import java.util.ArrayList;
@@ -53,7 +56,12 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.NavigableSet;
 import java.util.NoSuchElementException;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import javax.annotation.Nullable;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -1061,7 +1069,7 @@ public class AutoValueTest {
                 + Arrays.toString(ints)
                 + "}");
     assertThat(object1.toString()).isEqualTo(expectedString);
-    assertThat(object1.ints()).isSameAs(object1.ints());
+    assertThat(object1.ints()).isSameInstanceAs(object1.ints());
   }
 
   @Test
@@ -1078,7 +1086,7 @@ public class AutoValueTest {
             : ("PrimitiveArrays{booleans=" + Arrays.toString(booleans) + ", " + "ints=null}");
     assertThat(object1.toString()).isEqualTo(expectedString);
 
-    assertThat(object1.booleans()).isSameAs(object1.booleans());
+    assertThat(object1.booleans()).isSameInstanceAs(object1.booleans());
     assertThat(object1.booleans()).isEqualTo(booleans);
     object1.booleans()[0] ^= true;
     assertThat(object1.booleans()).isNotEqualTo(booleans);
@@ -1283,7 +1291,7 @@ public class AutoValueTest {
     MoreComplexInheritance instance1 = MoreComplexInheritance.create();
     MoreComplexInheritance instance2 = MoreComplexInheritance.create();
     assertThat(instance1).isEqualTo(instance2);
-    assertThat(instance1).isNotSameAs(instance2);
+    assertThat(instance1).isNotSameInstanceAs(instance2);
   }
 
   // Test that we are not misled by the privateness of an ancestor into thinking that its methods
@@ -1311,7 +1319,7 @@ public class AutoValueTest {
     EffectiveVisibility instance1 = EffectiveVisibility.create();
     EffectiveVisibility instance2 = EffectiveVisibility.create();
     assertThat(instance1).isEqualTo(instance2);
-    assertThat(instance1).isNotSameAs(instance2);
+    assertThat(instance1).isNotSameInstanceAs(instance2);
   }
 
   @AutoValue
@@ -1938,7 +1946,7 @@ public class AutoValueTest {
     }
 
     builder.setList(names);
-    assertThat(builder.list()).isSameAs(names);
+    assertThat(builder.list()).isSameInstanceAs(names);
     builder.setInts(ints);
     assertThat(builder.ints()).isEqualTo(ints);
     builder.setoAuth("OAuth");
@@ -1951,7 +1959,7 @@ public class AutoValueTest {
     ints[0] = 6;
 
     BuilderWithUnprefixedGetters<String> instance = builder.setNoGetter(noGetter).build();
-    assertThat(instance.list()).isSameAs(names);
+    assertThat(instance.list()).isSameInstanceAs(names);
     assertThat(instance.t()).isNull();
     assertThat(instance.ints()).isEqualTo(ints);
     assertThat(instance.noGetter()).isEqualTo(noGetter);
@@ -2019,13 +2027,13 @@ public class AutoValueTest {
     }
 
     builder.setList(names);
-    assertThat(builder.getList()).isSameAs(names);
+    assertThat(builder.getList()).isSameInstanceAs(names);
     builder.setT(name);
     assertThat(builder.getInts()).isNull();
     builder.setOAuth("OAuth");
 
     BuilderWithPrefixedGetters<String> instance = builder.setNoGetter(noGetter).build();
-    assertThat(instance.getList()).isSameAs(names);
+    assertThat(instance.getList()).isSameInstanceAs(names);
     assertThat(instance.getT()).isEqualTo(name);
     assertThat(instance.getInts()).isNull();
     assertThat(instance.getNoGetter()).isEqualTo(noGetter);
@@ -2220,15 +2228,89 @@ public class AutoValueTest {
     BuilderWithCopyingSetters.Builder<Integer> builder = BuilderWithCopyingSetters.builder(23);
 
     BuilderWithCopyingSetters<Integer> a = builder.setThings(ImmutableSet.of(1, 2)).build();
-    assertEquals(ImmutableSet.of(1, 2), a.things());
-    assertEquals(ImmutableList.of(17, 23.0), a.numbers());
-    assertEquals(ImmutableMap.of("foo", 23), a.map());
+    assertThat(a.things()).containsExactly(1, 2);
+    assertThat(a.numbers()).containsExactly(17, 23.0).inOrder();
+    assertThat(a.map()).containsExactly("foo", 23);
 
     BuilderWithCopyingSetters<Integer> b = builder.setThings(Arrays.asList(1, 2)).build();
-    assertEquals(a, b);
+    assertThat(b).isEqualTo(a);
 
     BuilderWithCopyingSetters<Integer> c = builder.setThings(1, 2).build();
-    assertEquals(a, c);
+    assertThat(c).isEqualTo(a);
+  }
+
+  @AutoValue
+  public abstract static class BuilderWithImmutableSorted<T extends Comparable<T>> {
+    public abstract ImmutableSortedSet<T> sortedSet();
+
+    public abstract ImmutableSortedMap<T, Integer> sortedMap();
+
+    public static <T extends Comparable<T>> Builder<T> builder() {
+      return new AutoValue_AutoValueTest_BuilderWithImmutableSorted.Builder<T>()
+          .setSortedSet(new TreeSet<T>())
+          .setSortedMap(new TreeMap<T, Integer>());
+    }
+
+    @AutoValue.Builder
+    public interface Builder<T extends Comparable<T>> {
+      @SuppressWarnings("unchecked")
+      Builder<T> setSortedSet(T... x);
+
+      Builder<T> setSortedSet(NavigableSet<T> x);
+
+      ImmutableSortedSet.Builder<T> sortedSetBuilder();
+
+      Builder<T> setSortedMap(SortedMap<T, Integer> x);
+
+      Builder<T> setSortedMap(NavigableMap<T, Integer> x);
+
+      ImmutableSortedMap.Builder<T, Integer> sortedMapBuilder();
+
+      BuilderWithImmutableSorted<T> build();
+    }
+  }
+
+  @Test
+  public void testBuilderWithImmutableSorted_Varargs() {
+    BuilderWithImmutableSorted<String> x =
+        BuilderWithImmutableSorted.<String>builder().setSortedSet("foo", "bar", "baz").build();
+    assertThat(x.sortedSet()).containsExactly("bar", "baz", "foo").inOrder();
+  }
+
+  @Test
+  public void testBuilderWithImmutableSorted_SetSet() {
+    BuilderWithImmutableSorted<String> x =
+        BuilderWithImmutableSorted.<String>builder()
+            .setSortedSet(new TreeSet<String>(String.CASE_INSENSITIVE_ORDER))
+            .build();
+    assertThat(x.sortedSet().comparator()).isEqualTo(String.CASE_INSENSITIVE_ORDER);
+  }
+
+  @Test
+  public void testBuilderWithImmutableSorted_SetMap() {
+    BuilderWithImmutableSorted<String> x =
+        BuilderWithImmutableSorted.<String>builder()
+            .setSortedMap(new TreeMap<String, Integer>(String.CASE_INSENSITIVE_ORDER))
+            .build();
+    assertThat(x.sortedMap().comparator()).isEqualTo(String.CASE_INSENSITIVE_ORDER);
+  }
+
+  @Test
+  public void testBuilderWithImmutableSorted_SetCollectionBuilder() {
+    BuilderWithImmutableSorted.Builder<String> builder =
+        BuilderWithImmutableSorted.<String>builder();
+    builder.sortedSetBuilder().add("is", "ea", "id");
+    BuilderWithImmutableSorted<String> x = builder.build();
+    assertThat(x.sortedSet()).containsExactly("ea", "id", "is").inOrder();
+  }
+
+  @Test
+  public void testBuilderWithImmutableSorted_MapCollectionBuilder() {
+    BuilderWithImmutableSorted.Builder<String> builder =
+        BuilderWithImmutableSorted.<String>builder();
+    builder.sortedMapBuilder().put("two", 2).put("one", 1);
+    BuilderWithImmutableSorted<String> x = builder.build();
+    assertThat(x.sortedMap()).containsExactly("one", 1, "two", 2).inOrder();
   }
 
   @AutoValue
@@ -2273,8 +2355,8 @@ public class AutoValueTest {
     ImmutableList<Integer> things = ImmutableList.of(17, 23);
     BuilderWithCollectionBuilderAndSetter.Builder<Integer> builder =
         BuilderWithCollectionBuilderAndSetter.<Integer>builder().setThings(things);
-    assertThat(builder.things()).isSameAs(things);
-    assertThat(builder.build().things()).isSameAs(things);
+    assertThat(builder.things()).isSameInstanceAs(things);
+    assertThat(builder.build().things()).isSameInstanceAs(things);
 
     List<Integer> moreThings = Arrays.asList(5, 17, 23);
     BuilderWithCollectionBuilderAndSetter.Builder<Integer> builder2 =
@@ -2450,7 +2532,7 @@ public class AutoValueTest {
         annotationsOnSuperclass.add(annotation.annotationType());
       }
       assertThat(annotationsOnSuperclass)
-          .containsAllOf(
+          .containsAtLeast(
               CopiedAnnotation.class, ExcludedAnnotation.class, InheritedAnnotation.class);
     }
 
@@ -2852,7 +2934,7 @@ public class AutoValueTest {
   public void testParentInterfaceOverridesGrandparent() {
     ItemVersionId version = new ItemVersionId();
     FakeItem fakeItem = FakeItem.builder().setVersionId(version).build();
-    assertThat(fakeItem.getVersionId()).isSameAs(version);
+    assertThat(fakeItem.getVersionId()).isSameInstanceAs(version);
   }
 
   /** Fake ApkVersionCode class. */
@@ -3123,5 +3205,54 @@ public class AutoValueTest {
     ChildOfAbstractGenericParentWithBuilder<String> child =
         ChildOfAbstractGenericParentWithBuilder.<String>builder().foo("foo").build();
     assertThat(child.foo()).isEqualTo("foo");
+  }
+
+  @SuppressWarnings("ClassCanBeStatic")
+  static class OuterWithTypeParam<T extends Number> {
+    class InnerWithTypeParam<U> {}
+    class InnerWithoutTypeParam {}
+    static class Nested {}
+  }
+
+  @AutoValue
+  abstract static class Nesty {
+    abstract OuterWithTypeParam<Double>.InnerWithTypeParam<String> innerWithTypeParam();
+    abstract OuterWithTypeParam<Double>.InnerWithoutTypeParam innerWithoutTypeParam();
+    abstract OuterWithTypeParam.Nested nested();
+
+    static Builder builder() {
+      return new AutoValue_AutoValueTest_Nesty.Builder();
+    }
+
+    @AutoValue.Builder
+    abstract static class Builder {
+      abstract Builder setInnerWithTypeParam(
+          OuterWithTypeParam<Double>.InnerWithTypeParam<String> x);
+      abstract Builder setInnerWithoutTypeParam(OuterWithTypeParam<Double>.InnerWithoutTypeParam x);
+      abstract Builder setNested(OuterWithTypeParam.Nested x);
+      abstract Nesty build();
+    }
+  }
+
+  @Test
+  public void outerWithTypeParam() throws ReflectiveOperationException {
+    @SuppressWarnings("UseDiamond") // Currently we compile this with -source 6 in the Eclipse test.
+    OuterWithTypeParam<Double> outer = new OuterWithTypeParam<Double>();
+    Nesty nesty = Nesty.builder()
+        .setInnerWithTypeParam(outer.new InnerWithTypeParam<String>())
+        .setInnerWithoutTypeParam(outer.new InnerWithoutTypeParam())
+        .setNested(new OuterWithTypeParam.Nested())
+        .build();
+    Type originalReturnType =
+        Nesty.class.getDeclaredMethod("innerWithTypeParam").getGenericReturnType();
+    Type generatedReturnType =
+        nesty.getClass().getDeclaredMethod("innerWithTypeParam").getGenericReturnType();
+    assertThat(generatedReturnType).isEqualTo(originalReturnType);
+    Type generatedBuilderParamType =
+        Nesty.builder()
+            .getClass()
+            .getDeclaredMethod("setInnerWithTypeParam", OuterWithTypeParam.InnerWithTypeParam.class)
+            .getGenericParameterTypes()[0];
+    assertThat(generatedBuilderParamType).isEqualTo(originalReturnType);
   }
 }

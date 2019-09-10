@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Google, Inc.
+ * Copyright 2016 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -186,7 +186,8 @@ class PropertyBuilderClassifier {
   // (1) It must have an instance method called `build()` that returns `Bar`. If the type of
   //     `bar()` is `Bar<String>` then the type of `build()` must be `Bar<String>`.
   // (2) `BarBuilder` must have a public no-arg constructor, or `Bar` must have a static method
-  //     `builder()` or `newBuilder()` that returns `BarBuilder`.
+  //     `naturalOrder(), `builder()`, or `newBuilder()` that returns `BarBuilder`. The
+  //     `naturalOrder()` case is specifically for ImmutableSortedSet and ImmutableSortedMap.
   // (3) `Bar` must have an instance method `BarBuilder toBuilder()`, or `BarBuilder` must be a
   //      Guava immutable builder like `ImmutableSet.Builder`. (See TODO below for relaxing the
   //      requirement on having a `toBuilder()`.
@@ -324,10 +325,10 @@ class PropertyBuilderClassifier {
   }
 
   private static final ImmutableSet<String> BUILDER_METHOD_NAMES =
-      ImmutableSet.of("builder", "newBuilder");
+      ImmutableSet.of("naturalOrder", "builder", "newBuilder");
 
   // (2) `BarBuilder must have a public no-arg constructor, or `Bar` must have a visible static
-  //      method `builder()` or `newBuilder()` that returns `BarBuilder`.
+  //      method `naturalOrder(), `builder()`, or `newBuilder()` that returns `BarBuilder`.
   private Optional<ExecutableElement> builderMaker(
       Map<String, ExecutableElement> barNoArgMethods, TypeElement barBuilderTypeElement) {
     for (String builderMethodName : BUILDER_METHOD_NAMES) {
@@ -356,11 +357,21 @@ class PropertyBuilderClassifier {
     // with the same name.
     Map<String, ExecutableElement> methods = new LinkedHashMap<String, ExecutableElement>();
     for (ExecutableElement method : ElementFilter.methodsIn(elementUtils.getAllMembers(type))) {
-      if (method.getParameters().isEmpty()) {
+      if (method.getParameters().isEmpty() && !isStaticInterfaceMethodNotIn(method, type)) {
         methods.put(method.getSimpleName().toString(), method);
       }
     }
     return methods;
+  }
+
+  // Work around an Eclipse compiler bug: https://bugs.eclipse.org/bugs/show_bug.cgi?id=547185
+  // The result of Elements.getAllMembers includes static methods declared in superinterfaces.
+  // That's wrong because those aren't inherited. So this method checks whether the given method is
+  // a static interface method not in the given type.
+  private static boolean isStaticInterfaceMethodNotIn(ExecutableElement method, TypeElement type) {
+    return method.getModifiers().contains(Modifier.STATIC)
+        && !method.getEnclosingElement().equals(type)
+        && method.getEnclosingElement().getKind().equals(ElementKind.INTERFACE);
   }
 
   private Optional<ExecutableElement> addAllPutAll(TypeElement barBuilderTypeElement) {

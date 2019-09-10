@@ -1,4 +1,4 @@
-## Copyright (C) 2014 Google, Inc.
+## Copyright 2014 Google LLC
 ##
 ## Licensed under the Apache License, Version 2.0 (the "License");
 ## you may not use this file except in compliance with the License.
@@ -257,13 +257,6 @@ final class $className implements $annotationName {
   #end
 #end
 
-## Compute the member name's contribution to the hashcode directly in the
-## template engine, to avoid triggering a compiler error for integer overflow.
-#macro (memberNameHash $m)
-  #set ($hc = 127 * $m.toString().hashCode())
-  ${hc} ##
-#end
-
 ## The hashCode is the sum of two parts, an invariable part and a variable part. The invariable part
 ## comes from defaulted members (ones that don't appear in the @AutoAnnotation method parameters)
 ## whose values have hash codes that never change. (That doesn't include Class constants, for
@@ -275,7 +268,9 @@ final class $className implements $annotationName {
     return
     ## If the invariable part is 0, we avoid outputting `return 0 + ...` just because it generates
     ## unnecessary byte code. But if there are no members then we must say `return 0;` here.
-    #if ($invariableHashSum != 0 || $members.empty)
+    ## We must write $members.isEmpty() because $members is a Map and Velocity interprets
+    ## $members.empty as meaning $members["empty"] in that case.
+    #if ($invariableHashSum != 0 || $members.isEmpty())
 
         $invariableHashSum
         // $invariableHashSum is the contribution from default members $invariableHashes
@@ -283,8 +278,8 @@ final class $className implements $annotationName {
     #foreach ($m in $members)
       #if (!$invariableHashes.contains($m.toString()))
 
-        + (#memberNameHash($m) ^ (#memberHashCodeExpression($m)))
-            // #memberNameHash($m) is 127 * "${m}".hashCode()
+        + ($m.nameHash ^ (#memberHashCodeExpression($m)))
+            // $m.nameHash is 127 * "${m}".hashCode()
       #end
     #end
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Google, Inc.
+ * Copyright 2013 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,9 +120,6 @@ final class FactoryDescriptorGenerator {
     checkNotNull(constructor);
     checkArgument(constructor.getKind() == ElementKind.CONSTRUCTOR);
     TypeElement classElement = MoreElements.asType(constructor.getEnclosingElement());
-    if (!classElement.getTypeParameters().isEmpty()) {
-      messager.printMessage(ERROR, "AutoFactory does not support generic types", classElement);
-    }
     ImmutableListMultimap<Boolean, ? extends VariableElement> parameterMap =
         Multimaps.index(constructor.getParameters(), Functions.forPredicate(
             new Predicate<VariableElement>() {

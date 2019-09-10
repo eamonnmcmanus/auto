@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Google, Inc.
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,9 @@ class AutoOneOfTemplateVars extends AutoValueOrOneOfTemplateVars {
 
   /** Maps property names like {@code dog} to enum constants like {@code DOG}. */
   Map<String, String> propertyToKind;
+
+  /** True if this {@code @AutoOneOf} class is Serializable. */
+  Boolean serializable;
 
   private static final Template TEMPLATE = parsedTemplateForResource("autooneof.vm");
 

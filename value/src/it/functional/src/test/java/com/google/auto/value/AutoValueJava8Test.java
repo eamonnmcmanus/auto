@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Google, Inc.
+ * Copyright 2012 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 package com.google.auto.value;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 import static com.google.common.truth.Truth8.assertThat;
 import static com.google.testing.compile.CompilationSubject.assertThat;
 import static org.junit.Assert.fail;
@@ -299,14 +300,14 @@ public class AutoValueJava8Test {
           AutoValue_AutoValueJava8Test_NestedNullableProperties.class.getDeclaredMethod(
               "nullableThing");
       Annotation[] getterAnnotations = generatedGetter.getAnnotatedReturnType().getAnnotations();
-      assertThat(getterAnnotations).asList().containsAllOf(nullable(), otherTypeAnnotation());
+      assertThat(getterAnnotations).asList().containsAtLeast(nullable(), otherTypeAnnotation());
 
       Method generatedSetter =
           AutoValue_AutoValueJava8Test_NestedNullableProperties.Builder.class.getDeclaredMethod(
               "setNullableThing", Nested.class);
       Annotation[] setterAnnotations =
           generatedSetter.getAnnotatedParameterTypes()[0].getAnnotations();
-      assertThat(setterAnnotations).asList().containsAllOf(nullable(), otherTypeAnnotation());
+      assertThat(setterAnnotations).asList().containsAtLeast(nullable(), otherTypeAnnotation());
     } catch (AssertionError e) {
       if (javacHandlesTypeAnnotationsCorrectly) {
         throw e;
@@ -350,7 +351,7 @@ public class AutoValueJava8Test {
             + "}";
     assertThat(object1.toString()).isEqualTo(expectedString);
 
-    assertThat(object1.ints()).isSameAs(object1.ints());
+    assertThat(object1.ints()).isSameInstanceAs(object1.ints());
   }
 
   @Test
@@ -366,7 +367,7 @@ public class AutoValueJava8Test {
         "PrimitiveArrays{booleans=" + Arrays.toString(booleans) + ", " + "ints=null}";
     assertThat(object1.toString()).isEqualTo(expectedString);
 
-    assertThat(object1.booleans()).isSameAs(object1.booleans());
+    assertThat(object1.booleans()).isSameInstanceAs(object1.booleans());
     assertThat(object1.booleans()).isEqualTo(booleans);
     object1.booleans()[0] ^= true;
     assertThat(object1.booleans()).isNotEqualTo(booleans);
@@ -535,7 +536,7 @@ public class AutoValueJava8Test {
     }
 
     builder.setList(names);
-    assertThat(builder.list()).isSameAs(names);
+    assertThat(builder.list()).isSameInstanceAs(names);
     builder.setInts(ints);
     assertThat(builder.ints()).isEqualTo(ints);
     // The array is not cloned by the getter, so the client can modify it (but shouldn't).
@@ -544,7 +545,7 @@ public class AutoValueJava8Test {
     ints[0] = 6;
 
     BuilderWithUnprefixedGetters<String> instance = builder.setNoGetter(noGetter).build();
-    assertThat(instance.list()).isSameAs(names);
+    assertThat(instance.list()).isSameInstanceAs(names);
     assertThat(instance.t()).isNull();
     assertThat(instance.ints()).isEqualTo(ints);
     assertThat(instance.noGetter()).isEqualTo(noGetter);
@@ -603,12 +604,12 @@ public class AutoValueJava8Test {
     }
 
     builder.setList(names);
-    assertThat(builder.getList()).isSameAs(names);
+    assertThat(builder.getList()).isSameInstanceAs(names);
     builder.setT(name);
     assertThat(builder.getInts()).isNull();
 
     BuilderWithPrefixedGetters<String> instance = builder.setNoGetter(noGetter).build();
-    assertThat(instance.getList()).isSameAs(names);
+    assertThat(instance.getList()).isSameInstanceAs(names);
     assertThat(instance.getT()).isEqualTo(name);
     assertThat(instance.getInts()).isNull();
     assertThat(instance.getNoGetter()).isEqualTo(noGetter);
@@ -698,8 +699,8 @@ public class AutoValueJava8Test {
     Class<?> c = x.getClass();
     assertThat(c.getTypeParameters()).hasLength(1);
     TypeVariable<?> typeParameter = c.getTypeParameters()[0];
-    assertThat(typeParameter.getAnnotations())
-        .named(typeParameter.toString())
+    assertWithMessage(typeParameter.toString())
+        .that(typeParameter.getAnnotations())
         .asList()
         .contains(nullable());
   }
@@ -731,8 +732,8 @@ public class AutoValueJava8Test {
     Class<?> c = builder.getClass();
     assertThat(c.getTypeParameters()).hasLength(1);
     TypeVariable<?> typeParameter = c.getTypeParameters()[0];
-    assertThat(typeParameter.getAnnotations())
-        .named(typeParameter.toString())
+    assertWithMessage(typeParameter.toString())
+        .that(typeParameter.getAnnotations())
         .asList()
         .contains(nullable());
   }

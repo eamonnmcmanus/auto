@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Google, Inc.
+ * Copyright 2013 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,5 +23,6 @@ public class GuiceModule extends AbstractModule {
     bind(Dependency.class).annotatedWith(Qualifier.class).to(QualifiedDependencyImpl.class);
     bind(Integer.class).toInstance(1);
     bind(Integer.class).annotatedWith(Qualifier.class).toInstance(2);
+    bind(Number.class).toInstance(3);
   }
 }

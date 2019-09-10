@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Google Inc.
+ * Copyright 2015 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -616,7 +616,7 @@ public class ExtensionTest {
             .processedWith(new AutoValueProcessor(badJarLoader))
             .compilesWithoutError();
     success.withWarningContaining(
-        "This may be due to a corrupt jar file in the compiler's classpath. Exception: "
+        "This may be due to a corrupt jar file in the compiler's classpath.\n  "
             + ServiceConfigurationError.class.getName());
     success
         .and()
@@ -770,9 +770,7 @@ public class ExtensionTest {
       generated = true;
 
       ImmutableList.Builder<String> typesAndNamesBuilder = ImmutableList.builder();
-      for (Map.Entry<String, ExecutableElement> entry : context.properties().entrySet()) {
-        typesAndNamesBuilder.add(entry.getValue().getReturnType() + " " + entry.getKey());
-      }
+      context.propertyTypes().forEach((name, type) -> typesAndNamesBuilder.add(type + " " + name));
       String typesAndNames = Joiner.on(", ").join(typesAndNamesBuilder.build());
       String template =
           "package {pkg};\n"
@@ -832,11 +830,9 @@ public class ExtensionTest {
         String sideClassFqName = context.packageName() + "." + sideClassName;
         JavaFileObject sourceFile =
             filer.createSourceFile(sideClassFqName, context.autoValueClass());
-        // TODO(emcmanus): use try-with-resources when we dump Java 6 source compatibility.
-        // (We will still *generate* code that is Java 6 compatible.)
-        Writer sourceWriter = sourceFile.openWriter();
-        sourceWriter.write(sideClass);
-        sourceWriter.close();
+        try (Writer sourceWriter = sourceFile.openWriter()) {
+          sourceWriter.write(sideClass);
+        }
       } catch (IOException e) {
         context
             .processingEnvironment()

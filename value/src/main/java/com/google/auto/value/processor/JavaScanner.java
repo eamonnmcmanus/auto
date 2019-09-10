@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Google, Inc.
+ * Copyright 2015 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,13 +40,19 @@ class JavaScanner {
   private final String s;
 
   JavaScanner(String s) {
-    if (!s.endsWith("\n")) {
-      s += "\n";
-      // This allows us to avoid checking for the end of the string in most cases.
-    }
-    this.s = s;
+    this.s = s.endsWith("\n") ? s : (s + '\n');
+    // This allows us to avoid checking for the end of the string in most cases.
   }
 
+  /**
+   * Returns the string being scanned, which is either the original input string or that string plus
+   * a newline.
+   */
+  String string() {
+    return s;
+  }
+
+  /** Returns the position at which this token ends and the next token begins. */
   int tokenEnd(int start) {
     if (start >= s.length()) {
       return s.length();

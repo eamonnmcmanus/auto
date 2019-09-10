@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Copyright (C) 2012 Google, Inc.
+  Copyright 2012 Google LLC
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@
   <description>
     Immutable value-type code generation for Java 1.6+.
   </description>
+  <url>https://github.com/google/auto/tree/master/value</url>
 
   <scm>
     <url>http://github.com/google/auto</url>
@@ -52,9 +53,15 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
+      <groupId>com.google.errorprone</groupId>
+      <artifactId>error_prone_annotations</artifactId>
+      <version>2.3.3</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
       <groupId>com.google.escapevelocity</groupId>
       <artifactId>escapevelocity</artifactId>
-      <version>0.9</version>
+      <version>0.9.1</version>
     </dependency>
     <dependency>
       <groupId>net.ltgt.gradle.incap</groupId>
@@ -100,6 +107,11 @@
     <dependency>
       <groupId>com.google.truth</groupId>
       <artifactId>truth</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.google.truth.extensions</groupId>
+      <artifactId>truth-java8-extension</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -175,6 +187,10 @@
                 <relocation>
                   <pattern>net.ltgt.gradle.incap</pattern>
                   <shadedPattern>autovalue.shaded.net.ltgt.gradle.incap$</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.checkerframework</pattern>
+                  <shadedPattern>autovalue.shaded.org.checkerframework$</shadedPattern>
                 </relocation>
               </relocations>
             </configuration>

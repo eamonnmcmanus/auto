@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Google Inc.
+ * Copyright 2015 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -89,8 +89,8 @@ public class GuavaCollectionBuildersTest {
     Class<?> builderClass = Class.forName(c.getName() + "$Builder");
     expect.that(builderMethod.getReturnType()).isEqualTo(builderClass);
     expect
+        .withMessage(c.getName())
         .that(Arrays.toString(builderMethodParameterizedReturn.getActualTypeArguments()))
-        .named(c.getName())
         .isEqualTo(Arrays.toString(builderClass.getTypeParameters()));
 
     // The Builder has a public build() method that returns ImmutableFoo.
@@ -110,6 +110,6 @@ public class GuavaCollectionBuildersTest {
         }
       }
     }
-    expect.that(found).named(builderClass.getName() + " has addAll or putAll").isTrue();
+    expect.withMessage(builderClass.getName() + " has addAll or putAll").that(found).isTrue();
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Google Inc.
+ * Copyright 2012 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 package com.google.auto.value.processor;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import com.google.testing.compile.CompilationRule;
 import java.util.List;
@@ -105,6 +106,7 @@ public class TypeSimplifierTest {
   }
 
   @Test
+  @SuppressWarnings("TypeEquals") // We want to test the equals method invocation on TypeMirror.
   public void testTypeMirrorSet() {
     // Test the TypeMirrorSet methods. Resist the temptation to rewrite these in terms of
     // Truth operations! For example, don't change assertThat(set.size()).isEqualTo(0) into
@@ -226,8 +228,8 @@ public class TypeSimplifierTest {
       }
       TypeMirror fieldType = field.asType();
       boolean actualUnchecked = TypeSimplifier.isCastingUnchecked(fieldType);
-      assertThat(actualUnchecked)
-          .named("Unchecked-cast status for " + fieldType)
+      assertWithMessage("Unchecked-cast status for " + fieldType)
+          .that(actualUnchecked)
           .isEqualTo(expectUnchecked);
     }
   }

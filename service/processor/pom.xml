@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Copyright (C) 2013 Google, Inc.
+  Copyright 2013 Google LLC
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>com.google.auto</groupId>
-    <artifactId>auto-parent</artifactId>
-    <version>7</version>
+    <groupId>com.google.auto.service</groupId>
+    <artifactId>auto-service-aggregator</artifactId>
+    <version>HEAD-SNAPSHOT</version>
   </parent>
 
   <groupId>com.google.auto.service</groupId>
@@ -31,6 +31,7 @@
   <description>
     Provider-configuration files for ServiceLoader.
   </description>
+  <url>https://github.com/google/auto/tree/master/service</url>
 
   <scm>
     <url>http://github.com/google/auto</url>

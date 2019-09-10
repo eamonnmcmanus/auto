@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Google, Inc.
+ * Copyright 2018 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,6 +64,11 @@ public class AutoOneOfProcessor extends AutoValueOrOneOfProcessor {
   }
 
   @Override
+  boolean propertiesCanBeVoid() {
+    return true;
+  }
+
+  @Override
   void processType(TypeElement autoOneOfType) {
     if (autoOneOfType.getKind() != ElementKind.CLASS) {
       errorReporter()
@@ -94,9 +99,11 @@ public class AutoOneOfProcessor extends AutoValueOrOneOfProcessor {
     Set<ExecutableElement> otherMethods = new LinkedHashSet<>(abstractMethods);
     otherMethods.remove(kindGetter);
 
-    ImmutableSet<ExecutableElement> propertyMethods = propertyMethodsIn(otherMethods);
-    ImmutableBiMap<String, ExecutableElement> properties = propertyNameToMethodMap(propertyMethods);
-    validateMethods(autoOneOfType, abstractMethods, propertyMethods, kindGetter);
+    ImmutableMap<ExecutableElement, TypeMirror> propertyMethodsAndTypes =
+        propertyMethodsIn(otherMethods, autoOneOfType);
+    ImmutableBiMap<String, ExecutableElement> properties =
+        propertyNameToMethodMap(propertyMethodsAndTypes.keySet());
+    validateMethods(autoOneOfType, abstractMethods, propertyMethodsAndTypes.keySet(), kindGetter);
     ImmutableMap<String, String> propertyToKind =
         propertyToKindMap(kindMirror, properties.keySet());
 
@@ -105,7 +112,7 @@ public class AutoOneOfProcessor extends AutoValueOrOneOfProcessor {
     vars.generatedClass = TypeSimplifier.simpleNameOf(subclass);
     vars.propertyToKind = propertyToKind;
     defineSharedVarsForType(autoOneOfType, methods, vars);
-    defineVarsForType(autoOneOfType, vars, propertyMethods, kindGetter);
+    defineVarsForType(autoOneOfType, vars, propertyMethodsAndTypes, kindGetter);
 
     String text = vars.toText();
     text = TypeEncoder.decode(text, processingEnv, vars.pkg, autoOneOfType.asType());
@@ -239,7 +246,7 @@ public class AutoOneOfProcessor extends AutoValueOrOneOfProcessor {
         // implement this alien method.
         errorReporter()
             .reportWarning(
-                "Abstract methods in @AutoOneOf classes must be non-void with no parameters",
+                "Abstract methods in @AutoOneOf classes must have no parameters",
                 method);
       }
     }
@@ -249,12 +256,16 @@ public class AutoOneOfProcessor extends AutoValueOrOneOfProcessor {
   private void defineVarsForType(
       TypeElement type,
       AutoOneOfTemplateVars vars,
-      ImmutableSet<ExecutableElement> propertyMethods,
+      ImmutableMap<ExecutableElement, TypeMirror> propertyMethodsAndTypes,
       ExecutableElement kindGetter) {
-    vars.props =
-        propertySet(type, propertyMethods, ImmutableListMultimap.of(), ImmutableListMultimap.of());
+    vars.props = propertySet(
+        propertyMethodsAndTypes, ImmutableListMultimap.of(), ImmutableListMultimap.of());
     vars.kindGetter = kindGetter.getSimpleName().toString();
     vars.kindType = TypeEncoder.encode(kindGetter.getReturnType());
+    TypeElement javaIoSerializable = elementUtils().getTypeElement("java.io.Serializable");
+    vars.serializable =
+        javaIoSerializable != null  // just in case
+        && typeUtils().isAssignable(type.asType(), javaIoSerializable.asType());
   }
 
   @Override

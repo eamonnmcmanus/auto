@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Google, Inc.
+ * Copyright 2016 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -330,12 +330,14 @@ public class OverridesTest {
           boolean javacSays = javacOverrides.overrides(javacOverrider, javacOverridden, javacIn);
           boolean weSay = explicitOverrides.overrides(overrider, overridden, in);
           if (javacSays != weSay) {
-            expect.fail(
-                "%s.%s overrides %s.%s in %s: javac says %s, we say %s",
-                overrider.getEnclosingElement(), overrider,
-                overridden.getEnclosingElement(), overridden,
-                in,
-                javacSays, weSay);
+            expect
+                .withMessage(
+                    "%s.%s overrides %s.%s in %s: javac says %s, we say %s",
+                    overrider.getEnclosingElement(), overrider,
+                    overridden.getEnclosingElement(), overridden,
+                    in,
+                    javacSays, weSay)
+                .fail();
           }
         }
       }

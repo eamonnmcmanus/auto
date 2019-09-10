@@ -1,4 +1,4 @@
-## Copyright (C) 2014 Google, Inc.
+## Copyright 2014 Google LLC
 ##
 ## Licensed under the Apache License, Version 2.0 (the "License");
 ## you may not use this file except in compliance with the License.
@@ -145,7 +145,7 @@ ${modifiers}class $subclass$formalTypes extends $origClass$actualTypes {
       $origClass$wildcardTypes that = ($origClass$wildcardTypes) o;
       return ##
           #foreach ($p in $props)
-          #equalsThatExpression ($p)##
+          #equalsThatExpression ($p $subclass)##
             #if ($foreach.hasNext)
 
           && ##
@@ -192,7 +192,7 @@ ${modifiers}class $subclass$formalTypes extends $origClass$actualTypes {
 
   #end
 
-  static final class Builder${builderFormalTypes} ##
+  static #if ($isFinal) final #end class Builder${builderFormalTypes} ##
   #if ($builderIsInterface) implements #else extends #end
       ${builderTypeName}${builderActualTypes} {
 
