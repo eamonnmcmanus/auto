@@ -16,9 +16,11 @@
 package com.google.auto.value.processor;
 
 import com.google.auto.value.extension.AutoValueExtension;
+import com.google.auto.value.extension.AutoValueExtension.BuilderContext;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.ExecutableElement;
@@ -30,6 +32,7 @@ class ExtensionContext implements AutoValueExtension.Context {
   private final TypeElement typeElement;
   private final ImmutableMap<String, ExecutableElement> properties;
   private final ImmutableSet<ExecutableElement> abstractMethods;
+  private Optional<BuilderContext> builderContext;
 
   ExtensionContext(
       ProcessingEnvironment processingEnvironment,
@@ -40,6 +43,10 @@ class ExtensionContext implements AutoValueExtension.Context {
     this.typeElement = typeElement;
     this.properties = properties;
     this.abstractMethods = abstractMethods;
+  }
+
+  void setBuilderContext(Optional<? extends BuilderContext> builderContext) {
+    this.builderContext = builderContext.map(x -> x);
   }
 
   @Override
@@ -65,5 +72,10 @@ class ExtensionContext implements AutoValueExtension.Context {
   @Override
   public Set<ExecutableElement> abstractMethods() {
     return abstractMethods;
+  }
+
+  @Override
+  public Optional<BuilderContext> builder() {
+    return builderContext;
   }
 }

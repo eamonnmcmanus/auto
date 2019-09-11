@@ -246,6 +246,7 @@ public class AutoValueProcessor extends AutoValueOrOneOfProcessor {
     GwtCompatibility gwtCompatibility = new GwtCompatibility(type);
     vars.gwtCompatibleAnnotation = gwtCompatibility.gwtCompatibleAnnotationString();
 
+    context.setBuilderContext(builder);
     int subclassDepth = writeExtensions(type, context, applicableExtensions);
     String subclass = generatedSubclassName(type, subclassDepth);
     vars.subclass = TypeSimplifier.simpleNameOf(subclass);

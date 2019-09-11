@@ -18,17 +18,25 @@ package com.google.auto.value.processor;
 import static com.google.auto.common.MoreElements.getLocalAndInheritedMethods;
 import static com.google.auto.value.processor.AutoValueOrOneOfProcessor.hasAnnotationMirror;
 import static com.google.auto.value.processor.ClassNames.AUTO_VALUE_BUILDER_NAME;
+import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.collect.Sets.immutableEnumSet;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 
 import com.google.auto.common.MoreTypes;
+import com.google.auto.value.extension.AutoValueExtension;
 import com.google.auto.value.processor.AutoValueOrOneOfProcessor.Property;
+import com.google.auto.value.processor.PropertyBuilderClassifier.PropertyBuilder;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -100,13 +108,75 @@ class BuilderSpec {
     }
   }
 
+  private static final ImmutableSet<Modifier> PRIVATE_STATIC =
+      ImmutableSet.of(Modifier.PRIVATE, Modifier.STATIC);
+
   /** Representation of an {@code AutoValue.Builder} class or interface. */
-  class Builder {
+  class Builder implements AutoValueExtension.BuilderContext {
     private final TypeElement builderTypeElement;
     private ImmutableSet<ExecutableElement> toBuilderMethods;
+    private ExecutableElement buildMethod;
+    private BuilderMethodClassifier classifier;
 
     Builder(TypeElement builderTypeElement) {
       this.builderTypeElement = builderTypeElement;
+    }
+
+    @Override
+    public TypeElement builderType() {
+      return builderTypeElement;
+    }
+
+    @Override
+    public Set<ExecutableElement> builderMethods() {
+      return ElementFilter.methodsIn(autoValueClass.getEnclosedElements()).stream()
+          .filter(
+              m ->
+                  m.getParameters().isEmpty()
+                      && Sets.intersection(m.getModifiers(), PRIVATE_STATIC)
+                          .equals(ImmutableSet.of(Modifier.STATIC))
+                      && erasedTypeIs(m.getReturnType(), builderTypeElement))
+          .collect(toSet());
+    }
+
+    @Override
+    public Optional<ExecutableElement> buildMethod() {
+      return ElementFilter.methodsIn(builderTypeElement.getEnclosedElements()).stream()
+          .filter(
+              m ->
+                  m.getSimpleName().contentEquals("build")
+                      && Sets.intersection(m.getModifiers(), PRIVATE_STATIC).isEmpty()
+                      && erasedTypeIs(m.getReturnType(), autoValueClass))
+          .findFirst();
+    }
+
+    @Override
+    public ExecutableElement autoBuildMethod() {
+      return buildMethod;
+    }
+
+    @Override
+    public Map<String, Set<ExecutableElement>> setters() {
+      return Maps.transformValues(
+          classifier.propertyNameToSetters().asMap(),
+          propertySetters ->
+              propertySetters.stream().map(PropertySetter::getSetter).collect(toSet()));
+    }
+
+    @Override
+    public Map<String, ExecutableElement> propertyBuilders() {
+      return Maps.transformValues(
+          classifier.propertyNameToPropertyBuilder(), PropertyBuilder::getPropertyBuilderMethod);
+    }
+
+    private boolean erasedTypeIs(TypeMirror type, TypeElement baseType) {
+      return type.getKind().equals(TypeKind.DECLARED)
+          && MoreTypes.asDeclared(type).asElement().equals(baseType);
+    }
+
+    @Override
+    public Set<ExecutableElement> toBuilderMethods() {
+      return toBuilderMethods;
     }
 
     /**
@@ -131,9 +201,7 @@ class BuilderSpec {
         Types typeUtils, Set<ExecutableElement> abstractMethods) {
 
       List<String> builderTypeParamNames =
-          builderTypeElement
-              .getTypeParameters()
-              .stream()
+          builderTypeElement.getTypeParameters().stream()
               .map(e -> e.getSimpleName().toString())
               .collect(toList());
 
@@ -143,9 +211,7 @@ class BuilderSpec {
           methods.add(method);
           DeclaredType returnType = MoreTypes.asDeclared(method.getReturnType());
           List<String> typeArguments =
-              returnType
-                  .getTypeArguments()
-                  .stream()
+              returnType.getTypeArguments().stream()
                   .filter(t -> t.getKind().equals(TypeKind.TYPEVAR))
                   .map(t -> typeUtils.asElement(t).getSimpleName().toString())
                   .collect(toList());
@@ -192,7 +258,7 @@ class BuilderSpec {
       if (!optionalClassifier.isPresent()) {
         return;
       }
-      BuilderMethodClassifier classifier = optionalClassifier.get();
+      this.classifier = optionalClassifier.get();
       Set<ExecutableElement> buildMethods = classifier.buildMethods();
       if (buildMethods.size() != 1) {
         Set<? extends Element> errorElements =
@@ -206,7 +272,7 @@ class BuilderSpec {
         }
         return;
       }
-      ExecutableElement buildMethod = Iterables.getOnlyElement(buildMethods);
+      this.buildMethod = Iterables.getOnlyElement(buildMethods);
       vars.builderIsInterface = builderTypeElement.getKind() == ElementKind.INTERFACE;
       vars.builderTypeName = TypeSimplifier.classNameOf(builderTypeElement);
       vars.builderFormalTypes = TypeEncoder.formalTypeParametersString(builderTypeElement);
