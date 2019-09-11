@@ -82,12 +82,12 @@ Maven users should add the following to the project's `pom.xml` file:
 <dependency>
   <groupId>com.google.auto.value</groupId>
   <artifactId>auto-value-annotations</artifactId>
-  <version>1.6.5</version>
+  <version>1.6.6</version>
 </dependency>
 <dependency>
   <groupId>com.google.auto.value</groupId>
   <artifactId>auto-value</artifactId>
-  <version>1.6.5</version>
+  <version>1.6.6</version>
   <scope>provided</scope>
 </dependency>
 ```
@@ -102,8 +102,8 @@ Gradle users can declare the dependencies in their `build.gradle` script:
 ```groovy
 dependencies {
   // Use 'api' rather than 'compile' for Android or java-library projects.
-  compile             "com.google.auto.value:auto-value-annotations:1.6.5"
-  annotationProcessor "com.google.auto.value:auto-value:1.6.5"
+  compile             "com.google.auto.value:auto-value-annotations:1.6.6"
+  annotationProcessor "com.google.auto.value:auto-value:1.6.6"
 }
 ```
 
@@ -115,7 +115,7 @@ annotation processing plugin [as described in these instructions][tbroyer-apt].
 
 ### <a name="usage"></a>Usage
 
-Your choice to use AutoValue is essentially *API-invisible*. That means that to
+Your choice to use AutoValue is essentially *API-invisible*. This means that, to
 the consumer of your class, your class looks and functions like any other. The
 simple test below illustrates that behavior. Note that in real life, you would
 write tests that actually *do something interesting* with the object, instead of

@@ -19,18 +19,21 @@ import com.google.auto.value.extension.AutoValueExtension;
 import com.google.auto.value.extension.AutoValueExtension.BuilderContext;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 
 class ExtensionContext implements AutoValueExtension.Context {
 
   private final ProcessingEnvironment processingEnvironment;
   private final TypeElement typeElement;
   private final ImmutableMap<String, ExecutableElement> properties;
+  private final ImmutableMap<String, TypeMirror> propertyTypes;
   private final ImmutableSet<ExecutableElement> abstractMethods;
   private Optional<BuilderContext> builderContext;
 
@@ -38,10 +41,13 @@ class ExtensionContext implements AutoValueExtension.Context {
       ProcessingEnvironment processingEnvironment,
       TypeElement typeElement,
       ImmutableMap<String, ExecutableElement> properties,
+      ImmutableMap<ExecutableElement, TypeMirror> propertyMethodsAndTypes,
       ImmutableSet<ExecutableElement> abstractMethods) {
     this.processingEnvironment = processingEnvironment;
     this.typeElement = typeElement;
     this.properties = properties;
+    this.propertyTypes =
+        ImmutableMap.copyOf(Maps.transformValues(properties, propertyMethodsAndTypes::get));
     this.abstractMethods = abstractMethods;
   }
 
@@ -67,6 +73,11 @@ class ExtensionContext implements AutoValueExtension.Context {
   @Override
   public Map<String, ExecutableElement> properties() {
     return properties;
+  }
+
+  @Override
+  public Map<String, TypeMirror> propertyTypes() {
+    return propertyTypes;
   }
 
   @Override
