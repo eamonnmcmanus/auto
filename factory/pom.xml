@@ -34,7 +34,7 @@
     <auto-value.version>1.11.0</auto-value.version>
     <java.version>1.8</java.version>
     <guava.version>33.2.1-jre</guava.version>
-    <truth.version>1.4.3</truth.version>
+    <truth.version>1.4.4</truth.version>
   </properties>
 
   <scm>
@@ -222,7 +222,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.3.0</version>
+        <version>3.3.1</version>
         <configuration>
           <argLine>${test.jvm.flags}</argLine>
         </configuration>
