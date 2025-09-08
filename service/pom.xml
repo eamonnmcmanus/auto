@@ -91,7 +91,7 @@
       <dependency>
         <groupId>com.google.testing.compile</groupId>
         <artifactId>compile-testing</artifactId>
-        <version>0.21.0</version>
+        <version>0.22.0</version>
       </dependency>
       <dependency>
         <groupId>com.google.truth</groupId>
@@ -149,7 +149,7 @@
           </plugin>
           <plugin>
             <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.11.2</version>
+            <version>3.11.3</version>
             <executions>
               <execution>
                 <id>attach-javadocs</id>
