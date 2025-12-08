@@ -108,7 +108,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
-        <version>3.4.2</version>
+        <version>3.5.0</version>
       </plugin>
       <plugin>
         <groupId>org.jetbrains.kotlin</groupId>
@@ -253,7 +253,7 @@
         <dependency>
           <groupId>org.eclipse.jdt</groupId>
           <artifactId>ecj</artifactId>
-          <version>3.43.0</version>
+          <version>3.44.0</version>
           <scope>test</scope>
         </dependency>
       </dependencies>
